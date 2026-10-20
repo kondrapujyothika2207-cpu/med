@@ -1,0 +1,11 @@
+﻿Medicine ID,Medicine Name,Strength,Category,Brand (Example),Batch Number (Demo),Expiry Date (Demo),Opening Stock,RFID UID (Fill This),Image File,Notes
+MED001,Paracetamol,500 mg,Pain relief,Example brand A,BATCH-PAR-001,2027-08-31,50,,paracetamol.png,Synthetic sample data only
+MED002,Amoxicillin,250 mg,Antibiotic,Example brand B,BATCH-AMX-002,2027-05-31,30,,amoxicillin.png,Prescription medicine; demo only
+MED003,Cetirizine,10 mg,Allergy,Example brand C,BATCH-CET-003,2027-11-30,40,,cetirizine.png,Synthetic sample data only
+MED004,Omeprazole,20 mg,Gastric,Example brand D,BATCH-OMP-004,2027-09-30,25,,omeprazole.png,Synthetic sample data only
+MED005,Azithromycin,500 mg,Antibiotic,Example brand E,BATCH-AZI-005,2027-04-30,20,,azithromycin.png,Prescription medicine; demo only
+MED006,Ibuprofen,400 mg,Pain relief,Example brand F,BATCH-IBU-006,2027-10-31,45,,ibuprofen.png,Synthetic sample data only
+MED007,Vitamin D3,1000 IU,Supplement,Example brand G,BATCH-VIT-007,2028-01-31,60,,vitamin-d3.png,Synthetic sample data only
+MED008,Metformin,500 mg,Diabetes,Example brand H,BATCH-MET-008,2027-12-31,35,,metformin.png,Synthetic sample data only
+MED009,Amlodipine,5 mg,Blood pressure,Example brand I,BATCH-AML-009,2027-06-30,25,,amlodipine.png,Synthetic sample data only
+MED010,Atorvastatin,10 mg,Cholesterol,Example brand J,BATCH-ATO-010,2027-03-31,30,,atorvastatin.png,Synthetic sample data only
