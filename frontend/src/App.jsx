@@ -107,13 +107,8 @@ function getMedicineImage(name, isGenuine = true, uid = '') {
   if (n.includes('metformin') || n.includes('glucophage')) return '/medicines/metformin.png';
   if (n.includes('amlodipine') || n.includes('norvasc') || n.includes('amlo')) return '/medicines/amlodipine.png';
   if (n.includes('atorvastatin') || n.includes('lipitor') || n.includes('atorva')) return '/medicines/atorvastatin.png';
-  // MedTrack generic auto-registered names
-  if (n.includes('medicine 1') || n.includes('med 1')) return '/medicines/paracetamol_ai.jpg';
-  if (n.includes('medicine 2') || n.includes('med 2')) return '/medicines/azithromycin.jpg';
-  if (n.includes('medicine 3') || n.includes('med 3')) return '/medicines/amoxicillin.jpg';
-  if (n.includes('medicine 4') || n.includes('med 4')) return '/medicines/cetirizine.png';
-  if (n.includes('medicine 5') || n.includes('med 5')) return '/medicines/omeprazole.png';
-  if (n.includes('medicine 6') || n.includes('med 6')) return '/medicines/metformin.png';
+  if (u === '7D:42:A7:4B' || cleanU === '7D42A74B') return '/medicines/amoxicillin.jpg';
+  if (u === 'CD:1B:2D:40' || cleanU === 'CD1B2D40') return '/medicines/azithromycin.jpg';
   // Fallback: use UID hash to pick a unique image per card
   const h = uidHash(uid || name);
   return MEDICINE_IMAGE_POOL[h % MEDICINE_IMAGE_POOL.length];
@@ -123,16 +118,20 @@ function getDisplayName(name, uid) {
   const u = (uid || '').toUpperCase().trim();
   const cleanU = u.replace(/[^A-F0-9]/g, '');
   if (u === 'E1:FC:1A:B1' || cleanU === 'E1FC1AB1') return 'Paracetamol 500mg Fast-Action Tablets';
+  if (u === '7D:42:A7:4B' || cleanU === '7D42A74B') return 'Amoxicillin 500mg Capsules';
+  if (u === 'CD:1B:2D:40' || cleanU === 'CD1B2D40') return 'Azithromycin 500mg Film-Coated';
   if (u === '7D:F0:AE:26' || cleanU === '7DF0AE26') return 'Master Stock-Removing Keycard (7D:F0:AE:26)';
   if (name) {
     const n = name.toLowerCase();
-    if (n.includes('paracetamol')) return 'Paracetamol 500mg Tablets';
-    if (n.includes('medicine 1') || n.includes('med 1')) return 'Paracetamol 500mg Tablets';
-    if (n.includes('medicine 2') || n.includes('med 2')) return 'Azithromycin 500mg Film-Coated';
-    if (n.includes('medicine 3') || n.includes('med 3')) return 'Amoxicillin 500mg Capsules';
-    if (n.includes('medicine 4') || n.includes('med 4')) return 'Cetirizine 10mg Antihistamine';
-    if (n.includes('medicine 5') || n.includes('med 5')) return 'Omeprazole 20mg Gastro-Resistant';
-    if (n.includes('medicine 6') || n.includes('med 6')) return 'Metformin 500mg SR Tablets';
+    if (n.includes('paracetamol')) return 'Paracetamol 500mg Fast-Action Tablets';
+    if (n.includes('amoxicillin')) return 'Amoxicillin 500mg Capsules';
+    if (n.includes('azithromycin')) return 'Azithromycin 500mg Film-Coated';
+    if (n.includes('cetirizine')) return 'Cetirizine 10mg Tablets';
+    if (n.includes('ibuprofen')) return 'Ibuprofen 400mg Tablets';
+    if (n.includes('omeprazole')) return 'Omeprazole 20mg Capsules';
+    if (n.includes('metformin')) return 'Metformin 500mg Tablets';
+    if (n.includes('amlodipine')) return 'Amlodipine 5mg Tablets';
+    if (n.includes('atorvastatin')) return 'Atorvastatin 10mg Tablets';
     return name;
   }
   // Fake / unregistered - pick a name based on UID
