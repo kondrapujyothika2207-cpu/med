@@ -2,8 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { io } from 'socket.io-client';
 import { Activity, Boxes, LogOut, Pill, Radio, ScanLine, ShieldCheck, Users, Wifi, WifiOff, Search, Plus, ArrowDownToLine, ArrowUpFromLine, RefreshCw } from 'lucide-react';
 
-const API = (import.meta.env.VITE_API_URL || 'http://localhost:4000').replace(/\/$/, '');
-const SOCKET = (import.meta.env.VITE_SOCKET_URL || API).replace(/\/$/, '');
+const API = (import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? 'http://localhost:4000' : '')).replace(/\/$/, '');
+const SOCKET = (import.meta.env.VITE_SOCKET_URL ?? (API || (typeof window !== 'undefined' ? window.location.origin : ''))).replace(/\/$/, '');
 async function api(path, token, options = {}) {
   const res = await fetch(`${API}${path}`, {
     ...options,

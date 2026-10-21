@@ -1,4 +1,15 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
+dotenv.config();
+
+const distPath = path.resolve(__dirname, '../../frontend/dist');
+
 import express from 'express';
 import http from 'http';
 import cors from 'cors';
@@ -17,12 +28,15 @@ const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
   .split(',').map(x => x.trim()).filter(Boolean);
 
 const io = new Server(server, {
-  cors: { origin: allowedOrigins, methods: ['GET', 'POST'] }
+  cors: { origin: allowedOrigins.length ? allowedOrigins : '*', methods: ['GET', 'POST'] }
 });
 
-app.use(helmet({ crossOriginResourcePolicy: { policy: 'cross-origin' } }));
+app.use(helmet({
+  contentSecurityPolicy: false,
+  crossOriginResourcePolicy: { policy: 'cross-origin' }
+}));
 app.use(cors({ origin(origin, cb) {
-  if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+  if (!origin || allowedOrigins.includes(origin) || allowedOrigins.includes('*') || process.env.NODE_ENV === 'production') return cb(null, true);
   return cb(new Error('Origin not allowed by CORS'));
 }}));
 app.use(express.json({ limit: '64kb' }));
@@ -209,6 +223,17 @@ app.post('/api/device/heartbeat', requireDevice, async (req, res) => {
   io.emit('device:heartbeat', { id, local_ip: localIp, last_seen: new Date().toISOString(), status: 'online' });
   res.json({ ok: true });
 });
+
+// Serve static frontend in production if built
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/socket.io')) {
+      return next();
+    }
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+}
 
 app.use((err, _req, res, _next) => {
   console.error(err);
