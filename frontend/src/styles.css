@@ -488,7 +488,7 @@ html{scroll-behavior:smooth;scroll-padding-top:90px}.landing-page{overflow:hidde
   display: inline-flex;
   align-items: center;
   gap: 20px;
-  animation: marquee-scroll 22s linear infinite;
+  animation: marquee-scroll 65s linear infinite;
   padding-left: 20px;
 }
 .ticker-content:hover {

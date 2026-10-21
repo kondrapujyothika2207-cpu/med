@@ -224,7 +224,7 @@ function HardwareTicker({ devices = [], currentIp }) {
   const espDevice = (Array.isArray(devices) && devices.length > 0)
     ? (devices.find(d => d.id?.toLowerCase().includes('esp') || d.local_ip) || devices[0])
     : null;
-  const ip = currentIp || espDevice?.local_ip || (typeof window !== 'undefined' && /^\d+\.\d+\.\d+\.\d+$/.test(window.location.hostname) ? window.location.hostname : '10.36.170.52');
+  const ip = currentIp || espDevice?.local_ip || (typeof window !== 'undefined' && /^\d+\.\d+\.\d+\.\d+$/.test(window.location.hostname) ? window.location.hostname : '10.36.170.226');
   const status = (espDevice?.status === 'online' || espDevice?.local_ip) ? 'ONLINE' : 'HOTSPOT ACTIVE';
 
   const tickerItem = (
@@ -406,7 +406,8 @@ function LoginShowcase() {
   );
 }
 
-function Login({ onLogin, devices = [], onClose }) {
+function Login({ onLogin, devices = [], currentIp }) {
+  const [showLogin, setShowLogin] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -424,58 +425,273 @@ function Login({ onLogin, devices = [], onClose }) {
     }
   }
 
+  if (showLogin) {
+    return (
+      <main className="login-shell">
+        <HardwareTicker devices={devices} currentIp={currentIp} />
+        <div className="login-page-topbar">
+          <button className="back-home-btn" onClick={() => setShowLogin(false)}>
+            ← Back to home
+          </button>
+          <span className="login-topbar-brand">
+            <Pill size={16} /> MedTrack · PharmaChain Security
+          </span>
+        </div>
+        <div className="login-split-layout">
+          <div className="login-form-col">
+            <div className="login-card entrance">
+              <div className="brand-mark"><Pill size={28} /></div>
+              <p className="eyebrow">MEDTRACK RFID</p>
+              <h1>Welcome<br />back.</h1>
+              <p className="muted">Sign in to your medicine operations workspace.</p>
+              <form onSubmit={submit} className="stack">
+                <label>
+                  Username
+                  <input
+                    autoComplete="username"
+                    value={username}
+                    onChange={e => setUsername(e.target.value)}
+                    required
+                    placeholder="Enter username"
+                  />
+                </label>
+                <label>
+                  Password
+                  <input
+                    type="password"
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    required
+                    placeholder="Enter password"
+                  />
+                </label>
+                {error && <div className="alert error">{error}</div>}
+                <button className="primary full" disabled={busy}>
+                  {busy ? 'Signing in…' : 'Sign in to workspace'} <span>↗</span>
+                </button>
+              </form>
+            </div>
+          </div>
+
+          <div className="login-showcase-col entrance delay-one">
+            <LoginShowcase />
+          </div>
+        </div>
+      </main>
+    );
+  }
+
   return (
-    <main className="login-shell">
-      <HardwareTicker devices={devices} />
-      <div className="login-page-topbar">
-        <button className="back-home-btn" onClick={onClose || (() => {})}>
-          ← Back to Live Scanner
+    <main className="landing-page">
+      <HardwareTicker devices={devices} currentIp={currentIp} />
+      <nav className="landing-nav">
+        <button className="landing-brand" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+          <span className="brand-mark small"><Pill size={20} /></span>
+          <span><strong>MedTrack</strong><small>RFID INVENTORY</small></span>
         </button>
-        <span className="login-topbar-brand">
-          <Pill size={16} /> MedTrack · Smart RFID Authentication
-        </span>
-      </div>
-      <div className="login-split-layout">
-        <div className="login-form-col">
-          <div className="login-card entrance">
-            <div className="brand-mark"><Pill size={28} /></div>
-            <p className="eyebrow">MEDTRACK RFID</p>
-            <h1>Welcome<br />back.</h1>
-            <p className="muted">Sign in to your medicine operations workspace.</p>
-            <form onSubmit={submit} className="stack">
-              <label>
-                Username
-                <input
-                  autoComplete="username"
-                  value={username}
-                  onChange={e => setUsername(e.target.value)}
-                  required
-                  placeholder="Enter username (e.g. admin)"
-                />
-              </label>
-              <label>
-                Password
-                <input
-                  type="password"
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  required
-                  placeholder="Enter password"
-                />
-              </label>
-              {error && <div className="alert error">{error}</div>}
-              <button className="primary full" disabled={busy}>
-                {busy ? 'Signing in…' : 'Sign in to workspace'} <span>↗</span>
-              </button>
-            </form>
+        <div className="landing-links">
+          <a href="#platform">Platform</a>
+          <a href="#workflow">How it works</a>
+          <a href="#security">Security</a>
+        </div>
+        <button className="nav-login" onClick={() => setShowLogin(true)}>Sign in <span>↗</span></button>
+      </nav>
+
+      <section className="landing-hero">
+        <div className="hero-copy entrance">
+          <div className="hero-badge"><span className="live-dot" /> RFID-POWERED MEDICINE INTELLIGENCE</div>
+          <h1>Every medicine.<br /><span>One clear view.</span></h1>
+          <p className="hero-description">A smarter way to identify medicine, monitor stock, and see every RFID scan as it happens — from your local device to your cloud dashboard.</p>
+          <div className="hero-actions">
+            <button className="hero-cta" onClick={() => setShowLogin(true)}>Open your dashboard <span>↗</span></button>
+            <a className="hero-secondary" href="#workflow">Explore the platform <span>↓</span></a>
+          </div>
+          <div className="hero-proof">
+            <div className="proof-avatars"><span>RF</span><span>IoT</span><span>DB</span></div>
+            <div><strong>Hardware to cloud, connected</strong><small>ESP32 · PN532 · Live dashboard</small></div>
           </div>
         </div>
 
-        <div className="login-showcase-col entrance delay-one">
-          <LoginShowcase />
+        <div className="hero-visual entrance delay-one">
+          <div className="visual-orbit orbit-a" />
+          <div className="visual-orbit orbit-b" />
+          <div className="floating-chip chip-top"><span className="chip-dot" /> Reader online <strong>●</strong></div>
+          <div className="floating-chip chip-bottom">
+            <ScanLine size={16} />
+            <span><strong>Tag identified</strong><small>UID · 04 A1 B2 C3</small></span>
+            <em>Just now</em>
+          </div>
+
+          <div className="dashboard-mock">
+            <div className="scanner-laser-line" />
+            <div className="mock-scan-radar" />
+            <div className="mock-top">
+              <div className="mock-logo"><Pill size={16} /></div>
+              <div><strong>Live overview</strong><small>Medicine operations</small></div>
+              <span className="mock-status"><i /> LIVE</span>
+            </div>
+            <div className="mock-greeting">
+              <small>MONITORING WORKSPACE</small>
+              <strong>Good morning 👋</strong>
+              <span>Your inventory at a glance.</span>
+            </div>
+            <div className="mock-stats">
+              <div><span>Medicines</span><strong>128</strong><small>Registered items</small></div>
+              <div><span>RFID scans</span><strong>1,024</strong><small className="positive">↗ Live activity</small></div>
+            </div>
+            <div className="mock-chart-head"><strong>Scan activity</strong><span>Last 7 days⌄</span></div>
+            <div className="mock-chart">
+              <div className="chart-grid"><i /><i /><i /></div>
+              <svg viewBox="0 0 440 110" preserveAspectRatio="none" aria-label="Illustrative scan activity chart">
+                <defs>
+                  <linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#43cbb0" stopOpacity=".28" />
+                    <stop offset="100%" stopColor="#43cbb0" stopOpacity="0" />
+                  </linearGradient>
+                </defs>
+                <path d="M0 88 C25 82 30 60 58 67 S92 85 119 53 S164 65 190 39 S235 59 262 34 S310 51 335 22 S384 46 410 15 L440 25 L440 110 L0 110Z" fill="url(#chartFill)" />
+                <path d="M0 88 C25 82 30 60 58 67 S92 85 119 53 S164 65 190 39 S235 59 262 34 S310 51 335 22 S384 46 410 15 L440 25" fill="none" stroke="#22ad98" strokeWidth="3" strokeLinecap="round" />
+              </svg>
+            </div>
+            <div className="mock-bottom">
+              <span><i className="legend-dot teal" /> RFID activity</span>
+              <span><i className="legend-dot pale" /> Cloud synced</span>
+              <strong>99.9% <small>visibility*</small></strong>
+            </div>
+          </div>
         </div>
-      </div>
+        <div className="hero-glow" />
+      </section>
+
+      <section className="compliance-logos-bar">
+        <div className="logos-label">PHARMACEUTICAL SERIALIZATION & IOT STANDARDS</div>
+        <div className="logos-grid">
+          <div className="logo-badge">
+            <span className="logo-badge-icon blue">WHO</span>
+            <div><strong>World Health Organization</strong><small>Good Distribution Practices (GDP)</small></div>
+          </div>
+          <div className="logo-badge">
+            <span className="logo-badge-icon teal">FDA</span>
+            <div><strong>U.S. FDA DSCSA</strong><small>Drug Supply Chain Security Act</small></div>
+          </div>
+          <div className="logo-badge">
+            <span className="logo-badge-icon orange">GS1</span>
+            <div><strong>GS1 Healthcare</strong><small>EPCIS Electronic Serialization</small></div>
+          </div>
+          <div className="logo-badge">
+            <span className="logo-badge-icon purple">ESP</span>
+            <div><strong>Espressif ESP32</strong><small>Secure IoT Core (WROOM-32)</small></div>
+          </div>
+          <div className="logo-badge">
+            <span className="logo-badge-icon green">GMP</span>
+            <div><strong>GMP Certified</strong><small>Tamper-Proof RFID Assurance</small></div>
+          </div>
+        </div>
+      </section>
+
+      <section className="trust-strip">
+        <span>BUILT FOR CONNECTED INVENTORY</span>
+        <div>
+          <span><Radio size={17} /> ESP32 READY</span>
+          <span><ScanLine size={17} /> NFC / RFID</span>
+          <span><Activity size={17} /> LIVE EVENTS</span>
+          <span><ShieldCheck size={17} /> ROLE-BASED ACCESS</span>
+        </div>
+      </section>
+
+      <section id="platform" className="platform-section">
+        <div className="section-heading">
+          <p className="eyebrow">THE PLATFORM</p>
+          <h2>Less guesswork.<br /><span>More visibility.</span></h2>
+          <p>Everything you need to identify, track, and manage medicine inventory in one focused workspace.</p>
+        </div>
+        <div className="feature-grid">
+          <article className="feature-card feature-dark">
+            <div className="feature-icon"><ScanLine size={22} /></div>
+            <span className="feature-number">01 / IDENTIFY</span>
+            <h3>Scan in a second.</h3>
+            <p>Read NFC tag UIDs through your PN532 reader and match them to registered medicine records.</p>
+            <div className="feature-graphic scan-graphic">
+              <div className="scan-ring"><Radio size={30} /></div>
+              <span className="scan-wave wave-one" />
+              <span className="scan-wave wave-two" />
+              <span className="scan-wave wave-three" />
+            </div>
+          </article>
+          <article className="feature-card">
+            <div className="feature-icon"><Activity size={22} /></div>
+            <span className="feature-number">02 / SEE LIVE</span>
+            <h3>Every event, in view.</h3>
+            <p>Follow incoming scan events, device heartbeats, and inventory changes with a responsive dashboard.</p>
+            <div className="mini-events">
+              <div><span className="event-check">✓</span><span><strong>Tag identified</strong><small>ESP32 · just now</small></span><b>LIVE</b></div>
+              <div><span className="event-check">✓</span><span><strong>Inventory synced</strong><small>Cloud database</small></span><b>OK</b></div>
+            </div>
+          </article>
+          <article className="feature-card">
+            <div className="feature-icon"><Boxes size={22} /></div>
+            <span className="feature-number">03 / CONTROL</span>
+            <h3>Stock with context.</h3>
+            <p>Track quantities, expiry dates, batches, and explicit stock-in or stock-out adjustments.</p>
+            <div className="stock-graphic">
+              <div className="stock-bar">
+                <span style={{ height: '46%' }} /><span style={{ height: '70%' }} />
+                <span style={{ height: '56%' }} /><span style={{ height: '88%' }} />
+                <span style={{ height: '64%' }} /><span style={{ height: '96%' }} />
+                <span style={{ height: '76%' }} />
+              </div>
+              <div className="stock-label"><strong>Inventory activity</strong><span>7-day snapshot</span></div>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section id="workflow" className="workflow-section">
+        <div className="workflow-copy">
+          <p className="eyebrow">FROM READER TO DASHBOARD</p>
+          <h2>Your hardware.<br /><span>Your cloud.</span></h2>
+          <p>The ESP32 reads the tag locally, securely sends the scan to your backend, and your website updates with the latest event.</p>
+          <button className="hero-cta" onClick={() => setShowLogin(true)}>Enter workspace <span>↗</span></button>
+        </div>
+        <div className="workflow-steps">
+          <div className="workflow-line" />
+          <div className="workflow-step">
+            <div className="step-icon"><Radio size={20} /></div>
+            <div><small>STEP 01</small><strong>PN532 reader</strong><p>Detects a compatible NFC tag and reads its UID.</p></div>
+            <span className="step-state">LOCAL</span>
+          </div>
+          <div className="workflow-step">
+            <div className="step-icon"><Wifi size={20} /></div>
+            <div><small>STEP 02</small><strong>ESP32 over Wi-Fi</strong><p>Sends scan events and heartbeat to your API.</p></div>
+            <span className="step-state">CONNECTED</span>
+          </div>
+          <div className="workflow-step">
+            <div className="step-icon"><Activity size={20} /></div>
+            <div><small>STEP 03</small><strong>Cloud dashboard</strong><p>Stores the event and streams updates to authorized users.</p></div>
+            <span className="step-state">LIVE</span>
+          </div>
+        </div>
+      </section>
+
+      <section id="security" className="security-band">
+        <div className="security-icon"><ShieldCheck size={28} /></div>
+        <div>
+          <p className="eyebrow">BUILT WITH GUARDRAILS</p>
+          <h2>Clear roles. Controlled access.</h2>
+          <p>Separate admin and user permissions, hashed passwords, authenticated API requests, and explicit inventory actions.</p>
+        </div>
+        <button className="security-link" onClick={() => setShowLogin(true)}>Sign in securely ↗</button>
+      </section>
+
+      <footer className="landing-footer">
+        <button className="landing-brand" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
+          <span className="brand-mark small"><Pill size={20} /></span>
+          <span><strong>MedTrack</strong><small>RFID INVENTORY</small></span>
+        </button>
+        <span>Medicine inventory visibility, from device to cloud.</span>
+        <small>Prototype platform · Verify inventory before dispensing.</small>
+      </footer>
     </main>
   );
 }
@@ -603,297 +819,6 @@ function ScanResultPopup({ scan, onClose }) {
   );
 }
 
-function LiveTerminalTab({
-  activeLiveScan,
-  scans = [],
-  devices = [],
-  currentIp,
-  audioEnabled,
-  setAudioEnabled,
-  onTestScan,
-  liveFlash,
-  busy
-}) {
-  const isGenuine = activeLiveScan
-    ? activeLiveScan.event_type !== 'unknown_tag' &&
-      (!activeLiveScan.note || !activeLiveScan.note.toLowerCase().includes('counterfeit')) &&
-      !!activeLiveScan.medicine_name
-    : null;
-
-  const onlineDevice = devices.find(d => d.status === 'online') || devices[0];
-  const activeIp = currentIp || onlineDevice?.local_ip || '10.36.170.52';
-
-  return (
-    <div className="live-terminal-panel">
-      {/* Top control bar */}
-      <div className="live-terminal-header">
-        <div className="live-terminal-title">
-          <span className="live-radar-badge">
-            <span className="live-dot" /> LIVE STREAM
-          </span>
-          <div>
-            <h2>Smart RFID Medicine Verification Terminal</h2>
-            <p>Real-time edge interrogation via ESP32 PN532 RFID reader & cryptographic drug registry</p>
-          </div>
-        </div>
-
-        <div className="live-terminal-actions">
-          <div className="live-device-status-chip">
-            <Wifi size={14} className={onlineDevice ? 'text-success' : 'text-muted'} />
-            <span>Reader: <strong>{onlineDevice ? onlineDevice.id : 'esp32-medicine-reader-01'}</strong></span>
-            <span style={{ background: '#dcfce7', color: '#166534', padding: '2px 8px', borderRadius: '6px', fontWeight: 700, fontSize: '11px', display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
-              <span className="live-dot" /> IP: <code>{activeIp}</code>
-            </span>
-          </div>
-
-          <button
-            type="button"
-            className={`live-audio-btn ${audioEnabled ? 'active' : ''}`}
-            onClick={() => setAudioEnabled(!audioEnabled)}
-            title={audioEnabled ? 'Audio Chime Enabled' : 'Audio Muted'}
-          >
-            {audioEnabled ? <Volume2 size={16} /> : <VolumeX size={16} />}
-            <span>{audioEnabled ? 'Audio ON' : 'Audio OFF'}</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Main Spotlight Hero */}
-      {activeLiveScan ? (
-        <div className={`live-spotlight-card ${liveFlash ? 'flash-active' : ''} ${isGenuine ? 'spotlight-verified' : 'spotlight-counterfeit'}`}>
-          <div className="live-spotlight-grid">
-            {/* Left: Big Medicine Image with Verified / Alert overlay */}
-            <div className="live-image-col">
-              <div className={`live-spotlight-img-wrap ${isGenuine ? 'verified-glow' : 'counterfeit-glow'}`}>
-                <img
-                  src={getMedicineImage(activeLiveScan.medicine_name, isGenuine, activeLiveScan.tag_uid)}
-                  alt={getDisplayName(activeLiveScan.medicine_name, activeLiveScan.tag_uid)}
-                  className="live-spotlight-img"
-                  onError={e => {
-                    e.target.src = getMedicineImage(null, isGenuine, activeLiveScan.tag_uid);
-                  }}
-                />
-                {isGenuine ? (
-                  <div className="verified-stamp-badge">
-                    <CheckCircle2 size={15} />
-                    <span>✓ AUTHENTIC</span>
-                  </div>
-                ) : (
-                  <div className="duplicate-stamp-badge">
-                    DUPLICATE / FAKE
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Right: Verification Status Banner and Details */}
-            <div className="live-details-col">
-              {/* Prominent VERIFIED / NOT VERIFIED Hero Banner */}
-              <div className={`live-status-hero-banner ${isGenuine ? 'verified' : 'unverified'}`}>
-                <div className="live-status-icon-wrap">
-                  {isGenuine ? (
-                    <svg className="animated-check-svg" viewBox="0 0 52 52">
-                      <circle className="check-circle" cx="26" cy="26" r="23" />
-                      <path className="check-path" d="M14 27l8 8 16-16" />
-                    </svg>
-                  ) : (
-                    <svg className="animated-cross-svg" viewBox="0 0 52 52">
-                      <circle className="cross-circle" cx="26" cy="26" r="23" />
-                      <line className="cross-line-1" x1="16" y1="16" x2="36" y2="36" />
-                      <line className="cross-line-2" x1="36" y1="16" x2="16" y2="36" />
-                    </svg>
-                  )}
-                </div>
-                <div className="live-status-banner-text">
-                  <h3>{isGenuine ? 'VERIFIED' : 'NOT VERIFIED'}</h3>
-                  <p>
-                    {isGenuine
-                      ? 'GENUINE PHARMACEUTICAL · CRYPTOGRAPHIC MATCH CONFIRMED'
-                      : 'CRITICAL WARNING: COUNTERFEIT OR UNREGISTERED DRUG DETECTED'}
-                  </p>
-                </div>
-              </div>
-
-              {/* Medicine Product Info */}
-              <div className="live-product-title-row">
-                <h3 className="live-product-name">
-                  {getDisplayName(activeLiveScan.medicine_name, activeLiveScan.tag_uid)}
-                </h3>
-                <p className="live-product-desc">
-                  {isGenuine
-                    ? (activeLiveScan.strength
-                        ? `Clinical Formulation: ${activeLiveScan.strength} — Tamper-evident serialization verified on ledger.`
-                        : 'Authentic pharmaceutical formulation. Serialized NFC signature verified.')
-                    : 'SECURITY FRAUD ALERT: Zero active pharmaceutical ingredient or unregistered duplicate tag detected. DO NOT DISPENSE.'}
-                </p>
-              </div>
-
-              {/* Telemetry Metadata Grid */}
-              <div className="live-meta-grid">
-                <div className="live-meta-card">
-                  <span>RFID Card UID</span>
-                  <strong><code>{activeLiveScan.tag_uid || 'UNKNOWN'}</code></strong>
-                </div>
-                <div className="live-meta-card">
-                  <span>Event ID</span>
-                  <strong>{activeLiveScan.event_id ? activeLiveScan.event_id.slice(0, 13) + '…' : '—'}</strong>
-                </div>
-                <div className="live-meta-card">
-                  <span>Reader Node</span>
-                  <strong>{activeLiveScan.device_id || 'esp32-01'}</strong>
-                </div>
-                <div className="live-meta-card">
-                  <span>Classification</span>
-                  <strong className={isGenuine ? 'text-success' : 'text-danger'}>
-                    {isGenuine ? 'Authentic (WHO Compliant)' : 'Spurious / Flagged'}
-                  </strong>
-                </div>
-                <div className="live-meta-card">
-                  <span>Audit Note</span>
-                  <strong title={activeLiveScan.note || ''}>{activeLiveScan.note || (isGenuine ? 'Verified on RFID Ledger' : 'Suspicious / Unlinked Tag')}</strong>
-                </div>
-                <div className="live-meta-card">
-                  <span>Scanned Timestamp</span>
-                  <strong>{date(activeLiveScan.scanned_at)}</strong>
-                </div>
-              </div>
-
-              {/* Hardware LED Sync Indicator */}
-              <div className="live-hardware-sync-pill">
-                <span>ESP32 Hardware Sync:</span>
-                <strong>BLUE LED: OFF (Scan Mode)</strong>
-                <span>·</span>
-                {isGenuine ? (
-                  <strong style={{ color: '#10b981' }}>GREEN LED: SOLID ON (2s) · 3000Hz CHIME</strong>
-                ) : (
-                  <strong style={{ color: '#ef4444' }}>RED LED: FLASHING WARNING · 1200Hz SIREN</strong>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : (
-        /* Idle Waiting Radar Hero */
-        <div className="live-idle-card">
-          <div className="live-idle-radar">
-            <div className="radar-wave-anim" />
-            <div className="radar-wave-anim wave-2" />
-            <div className="radar-wave-anim wave-3" />
-            <div className="radar-circle-center">
-              <Radio size={28} />
-            </div>
-          </div>
-          <h3>Scanner Ready · Tap RFID Medicine Card</h3>
-          <p>
-            Place any Mifare Classic 1K or NTAG215 card near the ESP32 PN532 antenna.
-            The medicine verification status and image will display here in real time.
-          </p>
-
-          <div className="live-quick-test-tray">
-            <span style={{ fontSize: '11px', fontWeight: 600, color: '#64748b', alignSelf: 'center', marginRight: '6px' }}>
-              Quick Test:
-            </span>
-            <button
-              type="button"
-              className="live-test-btn"
-              disabled={busy}
-              onClick={() => onTestScan('E1:FC:1A:B1', 'Paracetamol 500 mg', false)}
-            >
-              <Pill size={14} style={{ color: '#10b981' }} />
-              <span>Paracetamol 500mg (E1:FC:1A:B1)</span>
-            </button>
-            <button
-              type="button"
-              className="live-test-btn"
-              disabled={busy}
-              onClick={() => onTestScan('CD:1B:2D:40', 'Ibuprofen 400 mg', false)}
-            >
-              <Pill size={14} style={{ color: '#10b981' }} />
-              <span>Ibuprofen 400mg (CD:1B:2D:40)</span>
-            </button>
-            <button
-              type="button"
-              className="live-test-btn"
-              disabled={busy}
-              onClick={() => onTestScan('7D:42:A7:4B', 'Amoxicillin 250 mg', false)}
-            >
-              <Pill size={14} style={{ color: '#10b981' }} />
-              <span>Amoxicillin 250mg (7D:42:A7:4B)</span>
-            </button>
-            <button
-              type="button"
-              className="live-test-btn"
-              style={{ borderColor: '#fca5a5', background: '#fef2f2' }}
-              disabled={busy}
-              onClick={() => onTestScan('7D:F0:AE:26', 'Counterfeit Medicine Sample', true)}
-            >
-              <AlertTriangle size={14} style={{ color: '#ef4444' }} />
-              <span style={{ color: '#b91c1c' }}>Suspect Card (7D:F0:AE:26)</span>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Quick Test Bar if a scan is already active */}
-      {activeLiveScan && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: '#f8fafc', padding: '10px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '24px', flexWrap: 'wrap', gap: '10px' }}>
-          <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600 }}>Test other RFID tags:</span>
-          <div className="live-quick-test-tray">
-            <button type="button" className="live-test-btn" disabled={busy} onClick={() => onTestScan('E1:FC:1A:B1', 'Paracetamol 500 mg', false)}>
-              Paracetamol [E1:FC:1A:B1]
-            </button>
-            <button type="button" className="live-test-btn" disabled={busy} onClick={() => onTestScan('CD:1B:2D:40', 'Ibuprofen 400 mg', false)}>
-              Ibuprofen [CD:1B:2D:40]
-            </button>
-            <button type="button" className="live-test-btn" disabled={busy} onClick={() => onTestScan('7D:42:A7:4B', 'Amoxicillin 250 mg', false)}>
-              Amoxicillin [7D:42:A7:4B]
-            </button>
-            <button type="button" className="live-test-btn" style={{ borderColor: '#fca5a5', background: '#fef2f2', color: '#b91c1c' }} disabled={busy} onClick={() => onTestScan('7D:F0:AE:26', 'Counterfeit Sample', true)}>
-              Suspect [7D:F0:AE:26]
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Telemetry Stats Strip */}
-      <div className="live-telemetry-row">
-        <div className="telemetry-card">
-          <span className="telemetry-label">RFID Hardware Baud</span>
-          <strong className="telemetry-val highlight-blue">115200 Baud</strong>
-          <small>PN532 I2C 13.56 MHz Edge Node</small>
-        </div>
-        <div className="telemetry-card">
-          <span className="telemetry-label">Cloud Synchronization</span>
-          <strong className="telemetry-val highlight-teal">WebSocket Active</strong>
-          <small>Socket.IO bidirectional telemetry</small>
-        </div>
-        <div className="telemetry-card">
-          <span className="telemetry-label">Verification Latency</span>
-          <strong className="telemetry-val highlight-green">15 ms</strong>
-          <small>Instantaneous cryptographic match</small>
-        </div>
-        <div className="telemetry-card">
-          <span className="telemetry-label">Total Stream Scans</span>
-          <strong className="telemetry-val">{scans.length}</strong>
-          <small>Recorded in session memory</small>
-        </div>
-      </div>
-
-      {/* Real-time Recent Scans Stream */}
-      <div className="live-stream-section">
-        <div className="live-stream-header">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <ScanLine size={18} />
-            <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 700 }}>Real-Time Scans Telemetry Stream</h3>
-          </div>
-          <span style={{ fontSize: '11px', color: '#64748b' }}>Latest 20 live hardware events</span>
-        </div>
-        <ScanTable scans={scans.slice(0, 20)} />
-      </div>
-    </div>
-  );
-}
-
 function FeaturedMedicines({ onScan, busy }) {
   return (
     <div className="samples-container">
@@ -1012,7 +937,7 @@ function FeaturedMedicines({ onScan, busy }) {
 
 export default function App() {
   const [session, setSession] = useState(null);
-  const [tab, setTab] = useState('live');
+  const [tab, setTab] = useState('overview');
   const [activeLiveScan, setActiveLiveScan] = useState(null);
   const [scanPopup, setScanPopup] = useState(null);
   const [liveFlash, setLiveFlash] = useState(false);
@@ -1021,7 +946,7 @@ export default function App() {
   const [currentLocalIp, setCurrentLocalIp] = useState(() =>
     (typeof window !== 'undefined' && /^\d+\.\d+\.\d+\.\d+$/.test(window.location.hostname))
       ? window.location.hostname
-      : '10.36.170.52'
+      : '10.36.170.226'
   );
   const audioEnabledRef = useRef(audioEnabled);
   audioEnabledRef.current = audioEnabled;
@@ -1182,128 +1107,17 @@ export default function App() {
   const onlineDevices = devices.filter(d => d.status === 'online' && d.last_seen && Date.now() - new Date(d.last_seen).getTime() < 120000).length;
 
   if (!session) {
-    if (showLogin) {
-      return (
-        <Login
-          onLogin={data => { setSession(data); setShowLogin(false); setTab('live'); }}
-          onClose={() => setShowLogin(false)}
-          devices={devices}
-        />
-      );
-    }
-
     return (
-      <div className="public-live-shell">
-        <HardwareTicker devices={devices} currentIp={currentLocalIp} />
-        <header className="public-topbar">
-          <div className="public-brand">
-            <div className="brand-mark small"><Pill size={20} /></div>
-            <div>
-              <strong>MedTrack</strong>
-              <small>LIVE RFID VERIFICATION</small>
-            </div>
-          </div>
-
-          <nav className="public-nav-pills">
-            <button
-              type="button"
-              className={`public-tab-btn ${tab === 'live' ? 'active' : ''}`}
-              onClick={() => setTab('live')}
-            >
-              <Radio size={16} />
-              <span>Live Scan Terminal</span>
-              <span className="live-dot" />
-            </button>
-
-            <button
-              type="button"
-              className={`public-tab-btn ${tab === 'samples' ? 'active' : ''}`}
-              onClick={() => setTab('samples')}
-            >
-              <ShieldCheck size={16} />
-              <span>Drug Registry (Real/Fake)</span>
-            </button>
-
-            <button
-              type="button"
-              className={`public-tab-btn ${tab === 'workflow' ? 'active' : ''}`}
-              onClick={() => setTab('workflow')}
-            >
-              <Activity size={16} />
-              <span>Hardware Architecture</span>
-            </button>
-          </nav>
-
-          <div className="public-topbar-actions">
-            <button
-              type="button"
-              className="admin-login-cta"
-              onClick={() => setShowLogin(true)}
-            >
-              <span>Admin Portal</span>
-              <LogOut size={14} style={{ transform: 'rotate(180deg)' }} />
-            </button>
-          </div>
-        </header>
-
+      <>
+        <Login
+          onLogin={data => { setSession(data); setTab('overview'); }}
+          devices={devices}
+          currentIp={currentLocalIp}
+        />
         {toast && <div className="toast">{toast}</div>}
         {error && <div className="alert error"><span>{error}</span><button onClick={() => setError('')}>Dismiss</button></div>}
-
-        <main className="public-content-wrap">
-          {tab === 'live' && (
-            <LiveTerminalTab
-              activeLiveScan={activeLiveScan}
-              scans={scans}
-              devices={devices}
-              currentIp={currentLocalIp}
-              audioEnabled={audioEnabled}
-              setAudioEnabled={setAudioEnabled}
-              onTestScan={handleTestScan}
-              liveFlash={liveFlash}
-              busy={busy}
-            />
-          )}
-
-          {tab === 'samples' && (
-            <FeaturedMedicines
-              onScan={sample => handleTestScan(sample.uid, sample.name, sample.type === 'fake')}
-              busy={busy}
-            />
-          )}
-
-          {tab === 'workflow' && (
-            <div className="samples-container">
-              <div className="section-header-row">
-                <div>
-                  <span className="eyebrow-badge">HARDWARE TELEMETRY</span>
-                  <h2>Connected RFID Edge Architecture</h2>
-                  <p>Hardware PN532 interrogation over I2C to cloud WebSocket event ledger.</p>
-                </div>
-              </div>
-              <section id="workflow" className="workflow-section" style={{ margin: '0', background: '#fff' }}>
-                <div className="workflow-steps">
-                  <div className="workflow-step">
-                    <div className="step-icon"><Radio size={20} /></div>
-                    <div><small>STEP 01</small><strong>PN532 Reader</strong><p>Interrogates Mifare Classic 1K or NTAG215 cryptotags at 115200 baud.</p></div>
-                    <span className="step-state">LOCAL</span>
-                  </div>
-                  <div className="workflow-step">
-                    <div className="step-icon"><Wifi size={20} /></div>
-                    <div><small>STEP 02</small><strong>ESP32 Microcontroller</strong><p>Evaluates verification status, triggers LED audio indicators, and posts to Render API.</p></div>
-                    <span className="step-state">CONNECTED</span>
-                  </div>
-                  <div className="workflow-step">
-                    <div className="step-icon"><Activity size={20} /></div>
-                    <div><small>STEP 03</small><strong>Realtime Cloud Dashboard</strong><p>Streams live WebSocket scan events and visualizes genuine vs counterfeit status.</p></div>
-                    <span className="step-state">LIVE</span>
-                  </div>
-                </div>
-              </section>
-            </div>
-          )}
-        </main>
         {scanPopup && <ScanResultPopup scan={scanPopup} onClose={() => setScanPopup(null)} />}
-      </div>
+      </>
     );
   }
 
@@ -1466,15 +1280,7 @@ export default function App() {
             </h1>
           </div>
           <div className="top-actions">
-            <button
-              type="button"
-              className="navbar-live-pill"
-              onClick={() => setTab('live')}
-              title="Open Real-time Live Scan Terminal"
-            >
-              <span className="live-beacon" />
-              <span>Live Terminal</span>
-            </button>
+            
             <span className="live-pill"><span className="live-dot" /> Live updates</span>
             <button className="icon-button" onClick={load} title="Refresh"><RefreshCw size={17} /></button>
             <div className="role-chip">{isAdmin ? 'Administrator' : 'User Portal'}</div>
@@ -1484,19 +1290,7 @@ export default function App() {
         {error && <div className="alert error"><span>{error}</span><button onClick={() => setError('')}>Dismiss</button></div>}
         {toast && <div className="toast">{toast}</div>}
 
-        {tab === 'live' && (
-          <LiveTerminalTab
-            activeLiveScan={activeLiveScan}
-            scans={scans}
-            devices={devices}
-            currentIp={currentLocalIp}
-            audioEnabled={audioEnabled}
-            setAudioEnabled={setAudioEnabled}
-            onTestScan={handleTestScan}
-            liveFlash={liveFlash}
-            busy={busy}
-          />
-        )}
+        
 
         {tab === 'overview' && (
           <>
