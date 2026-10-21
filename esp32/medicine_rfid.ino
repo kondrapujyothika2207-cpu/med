@@ -92,7 +92,7 @@ String currentApiBaseUrl          = API_BASE_URL_PRIMARY;
 
 const char* DEVICE_API_KEY = "esp32-device-secure-key-9988776655";
 const char* DEVICE_ID      = "esp32-medicine-reader-01";
-const char* FIRMWARE_VER   = "1.4.1";
+const char* FIRMWARE_VER   = "1.4.2";
 
 unsigned long lastHeartbeat = 0;
 unsigned long lastScanSent  = 0;
@@ -341,8 +341,24 @@ void processTagScan(const String& uid) {
 }
 
 // ----------------------------------------------------
-// WI-FI DIAGNOSTICS & AUTO-CONNECT
+// BOOT REASON & WI-FI DIAGNOSTICS
 // ----------------------------------------------------
+const char* getResetReasonText(esp_reset_reason_t reason) {
+  switch (reason) {
+    case ESP_RST_POWERON:   return "Power-on (Normal boot)";
+    case ESP_RST_EXT:       return "External reset pin";
+    case ESP_RST_SW:        return "Software reset";
+    case ESP_RST_PANIC:     return "Software panic / exception";
+    case ESP_RST_INT_WDT:   return "Interrupt watchdog reset";
+    case ESP_RST_TASK_WDT:  return "Task watchdog reset";
+    case ESP_RST_WDT:       return "Other watchdog reset";
+    case ESP_RST_DEEPSLEEP: return "Deep sleep wake";
+    case ESP_RST_BROWNOUT:  return "BROWNOUT RESET (Voltage sag / weak power supply)";
+    case ESP_RST_SDIO:      return "SDIO reset";
+    default:                return "Other / Unknown";
+  }
+}
+
 const char* getWifiStatusText(wl_status_t status) {
   switch (status) {
     case WL_IDLE_STATUS:     return "Idle";
@@ -356,23 +372,22 @@ const char* getWifiStatusText(wl_status_t status) {
   }
 }
 
-void connectWifi() {
-  WiFi.persistent(false); // Do not write Wi-Fi config to flash on every boot
-  WiFi.mode(WIFI_STA);
-  WiFi.setTxPower(WIFI_POWER_15dBm); // Mitigate current surge that triggers brownout reset
-  WiFi.setAutoReconnect(true);
-
-  Serial.printf("\nConnecting to Wi-Fi SSID: '%s'...\n", WIFI_SSID);
+void startWifi() {
+  Serial.printf("\n[Wi-Fi] Connecting to SSID: '%s'...\n", WIFI_SSID);
   Serial.flush();
+
+  WiFi.persistent(false);
+  WiFi.mode(WIFI_STA);
+  WiFi.setAutoReconnect(true);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
-  // Quick initial check (up to 5 seconds) - never hang or block setup!
+  // Quick initial check (4 seconds max) - do not toggle LEDs to avoid current draw
   unsigned long start = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - start < 5000) {
-    delay(250);
+  while (WiFi.status() != WL_CONNECTED && millis() - start < 4000) {
+    delay(300);
     yield();
     Serial.print(".");
-    digitalWrite(BLUE_LED_PIN, !digitalRead(BLUE_LED_PIN)); // Blink Blue LED while connecting
+    Serial.flush();
   }
   Serial.println();
 
@@ -390,7 +405,23 @@ void connectWifi() {
   } else {
     digitalWrite(BLUE_LED_PIN, LOW);
     Serial.printf("ℹ [Wi-Fi] Status: %s (will auto-connect in background).\n", getWifiStatusText(WiFi.status()));
-    Serial.println("  Proceeding to PN532 RFID reader initialization...");
+
+    // If SSID not found, run quick 2.4GHz network scan to assist user
+    if (WiFi.status() == WL_NO_SSID_AVAIL || WiFi.status() == WL_DISCONNECTED) {
+      Serial.println("\n--- Scanning for visible 2.4GHz Wi-Fi networks ---");
+      int n = WiFi.scanNetworks();
+      bool found = false;
+      for (int i = 0; i < n; i++) {
+        String s = WiFi.SSID(i);
+        if (s == WIFI_SSID) found = true;
+        Serial.printf("   [%d] %-25s | Signal: %d dBm\n", i + 1, s.c_str(), WiFi.RSSI(i));
+      }
+      if (!found) {
+        Serial.println("  ❌ Hotspot 'Nothing Phone (3a)_2505' NOT visible in 2.4GHz scan!");
+        Serial.println("     --> On your Nothing Phone: Enable 'Extend compatibility' or switch AP Band to 2.4 GHz.");
+      }
+      Serial.println("--------------------------------------------------\n");
+    }
   }
 }
 
@@ -400,7 +431,7 @@ void setup() {
 
   Serial.begin(115200);
 
-  // Initialize LED & Buzzer Pins
+  // Initialize LED & Buzzer Pins (keep LOW to prevent startup power draw)
   pinMode(BLUE_LED_PIN, OUTPUT);
   pinMode(GREEN_LED_PIN, OUTPUT);
   pinMode(RED_LED_PIN, OUTPUT);
@@ -411,15 +442,17 @@ void setup() {
   digitalWrite(RED_LED_PIN, LOW);
   digitalWrite(BUZZER_PIN, LOW);
 
-  delay(300);
+  delay(200);
   Serial.println("\n\n=================================================");
   Serial.println("  MedTrack RFID Smart Medicine Authentication    ");
-  Serial.println("  ESP32 Firmware v1.4.1 - Hardware Ready         ");
+  Serial.println("  ESP32 Firmware v1.4.2 - Hardware Ready         ");
   Serial.println("=================================================");
 
-  // Connect to Wi-Fi (non-blocking)
-  connectWifi();
+  // Print startup reset reason
+  esp_reset_reason_t rstReason = esp_reset_reason();
+  Serial.printf(">>> Boot Cause: %d [%s]\n", (int)rstReason, getResetReasonText(rstReason));
 
+  // STEP 1: Initialize RFID Hardware FIRST so scanner is always operational
 #if USE_RC522
   SPI.begin();
   rfid.PCD_Init();
@@ -448,7 +481,10 @@ void setup() {
   }
 #endif
 
-  Serial.println("✓ Ready for RFID Medicine Tag Scans.");
+  Serial.println("✓ RFID Scanner is Active & Ready.");
+
+  // STEP 2: Connect to Wi-Fi (Non-blocking)
+  startWifi();
 }
 
 void loop() {
