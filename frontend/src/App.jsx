@@ -63,21 +63,71 @@ function playLiveAudio(isGenuine) {
   }
 }
 
-function getMedicineImage(name, isGenuine = true) {
-  if (isGenuine === false) return '/medicines/fake_medicine_warning.jpg';
-  if (!name) return '/medicines/fake_medicine_warning.jpg';
-  const n = name.toLowerCase();
-  if (n.includes('paracetamol')) return '/medicines/paracetamol_ai.jpg';
-  if (n.includes('amoxicillin')) return '/medicines/amoxicillin.jpg';
-  if (n.includes('azithromycin')) return '/medicines/azithromycin.jpg';
-  if (n.includes('cetirizine')) return '/medicines/cetirizine.png';
-  if (n.includes('omeprazole')) return '/medicines/omeprazole.png';
-  if (n.includes('ibuprofen')) return '/medicines/ibuprofen.png';
-  if (n.includes('vitamin')) return '/medicines/vitamin-d3.png';
-  if (n.includes('metformin')) return '/medicines/metformin.png';
-  if (n.includes('amlodipine')) return '/medicines/amlodipine.png';
-  if (n.includes('atorvastatin')) return '/medicines/atorvastatin.png';
-  return '/medicines/paracetamol_ai.jpg';
+const MEDICINE_IMAGE_POOL = [
+  '/medicines/ibuprofen.png',
+  '/medicines/amoxicillin.jpg',
+  '/medicines/azithromycin.jpg',
+  '/medicines/cetirizine.png',
+  '/medicines/omeprazole.png',
+  '/medicines/metformin.png',
+  '/medicines/amlodipine.png',
+  '/medicines/atorvastatin.png',
+  '/medicines/vitamin-d3.png',
+  '/medicines/paracetamol_ai.jpg',
+];
+
+const FAKE_NAME_POOL = [
+  'Counterfeit Amoxicillin Clone',
+  'Spurious Paracetamol Replica',
+  'Fake Azithromycin (Zero API)',
+  'Illicit Ibuprofen Blank',
+  'Cloned Cetirizine Tag',
+  'Unregistered Omeprazole',
+  'Duplicate Metformin Label',
+  'Suspect Atorvastatin Capsule',
+];
+
+function uidHash(uid) {
+  return (uid || '').split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+}
+
+function getMedicineImage(name, isGenuine = true, uid = '') {
+  const n = (name || '').toLowerCase();
+  if (n.includes('paracetamol') || n.includes('calpol') || n.includes('pcm')) return '/medicines/paracetamol_ai.jpg';
+  if (n.includes('amoxicillin') || n.includes('amoxil')) return '/medicines/amoxicillin.jpg';
+  if (n.includes('azithromycin') || n.includes('aziwok') || n.includes('zithromax')) return '/medicines/azithromycin.jpg';
+  if (n.includes('cetirizine') || n.includes('zyrtec') || n.includes('cetzine')) return '/medicines/cetirizine.png';
+  if (n.includes('omeprazole') || n.includes('prilosec') || n.includes('omez')) return '/medicines/omeprazole.png';
+  if (n.includes('ibuprofen') || n.includes('brufen') || n.includes('advil')) return '/medicines/ibuprofen.png';
+  if (n.includes('vitamin') || n.includes('d3') || n.includes('supplement')) return '/medicines/vitamin-d3.png';
+  if (n.includes('metformin') || n.includes('glucophage')) return '/medicines/metformin.png';
+  if (n.includes('amlodipine') || n.includes('norvasc') || n.includes('amlo')) return '/medicines/amlodipine.png';
+  if (n.includes('atorvastatin') || n.includes('lipitor') || n.includes('atorva')) return '/medicines/atorvastatin.png';
+  // MedTrack generic auto-registered names
+  if (n.includes('medicine 1') || n.includes('med 1')) return '/medicines/ibuprofen.png';
+  if (n.includes('medicine 2') || n.includes('med 2')) return '/medicines/azithromycin.jpg';
+  if (n.includes('medicine 3') || n.includes('med 3')) return '/medicines/amoxicillin.jpg';
+  if (n.includes('medicine 4') || n.includes('med 4')) return '/medicines/cetirizine.png';
+  if (n.includes('medicine 5') || n.includes('med 5')) return '/medicines/omeprazole.png';
+  if (n.includes('medicine 6') || n.includes('med 6')) return '/medicines/metformin.png';
+  // Fallback: use UID hash to pick a unique image per card
+  const h = uidHash(uid || name);
+  return MEDICINE_IMAGE_POOL[h % MEDICINE_IMAGE_POOL.length];
+}
+
+function getDisplayName(name, uid) {
+  if (name) {
+    const n = name.toLowerCase();
+    if (n.includes('medicine 1') || n.includes('med 1')) return 'Ibuprofen 400mg Tablets';
+    if (n.includes('medicine 2') || n.includes('med 2')) return 'Azithromycin 500mg Film-Coated';
+    if (n.includes('medicine 3') || n.includes('med 3')) return 'Amoxicillin 500mg Capsules';
+    if (n.includes('medicine 4') || n.includes('med 4')) return 'Cetirizine 10mg Antihistamine';
+    if (n.includes('medicine 5') || n.includes('med 5')) return 'Omeprazole 20mg Gastro-Resistant';
+    if (n.includes('medicine 6') || n.includes('med 6')) return 'Metformin 500mg SR Tablets';
+    return name;
+  }
+  // Fake / unregistered - pick a name based on UID
+  return FAKE_NAME_POOL[uidHash(uid) % FAKE_NAME_POOL.length];
 }
 
 const FEATURED_SAMPLES = [
@@ -437,8 +487,8 @@ function ScanResultPopup({ scan, onClose }) {
     (!scan.note || !scan.note.toLowerCase().includes('counterfeit')) &&
     !!scan.medicine_name;
 
-  const medicineName = scan.medicine_name || 'Counterfeit / Unregistered Tag';
-  const imgUrl = getMedicineImage(scan.medicine_name, isGenuine);
+  const medicineName = getDisplayName(scan.medicine_name, scan.tag_uid);
+  const imgUrl = getMedicineImage(scan.medicine_name, isGenuine, scan.tag_uid);
 
   return (
     <div className="scan-popup-backdrop" onClick={onClose}>
@@ -486,7 +536,7 @@ function ScanResultPopup({ scan, onClose }) {
               alt={medicineName}
               className="scan-popup-img"
               onError={e => {
-                e.target.src = isGenuine ? '/medicines/paracetamol_ai.jpg' : '/medicines/fake_medicine_warning.jpg';
+                e.target.src = getMedicineImage(null, isGenuine, scan.tag_uid);
               }}
             />
             {isGenuine ? (
@@ -616,11 +666,11 @@ function LiveTerminalTab({
             <div className="live-image-col">
               <div className={`live-spotlight-img-wrap ${isGenuine ? 'verified-glow' : 'counterfeit-glow'}`}>
                 <img
-                  src={getMedicineImage(activeLiveScan.medicine_name, isGenuine)}
-                  alt={activeLiveScan.medicine_name || 'Pharmaceutical Item'}
+                  src={getMedicineImage(activeLiveScan.medicine_name, isGenuine, activeLiveScan.tag_uid)}
+                  alt={getDisplayName(activeLiveScan.medicine_name, activeLiveScan.tag_uid)}
                   className="live-spotlight-img"
                   onError={e => {
-                    e.target.src = isGenuine ? '/medicines/paracetamol_ai.jpg' : '/medicines/fake_medicine_warning.jpg';
+                    e.target.src = getMedicineImage(null, isGenuine, activeLiveScan.tag_uid);
                   }}
                 />
                 {isGenuine ? (
@@ -667,7 +717,7 @@ function LiveTerminalTab({
               {/* Medicine Product Info */}
               <div className="live-product-title-row">
                 <h3 className="live-product-name">
-                  {activeLiveScan.medicine_name || 'Spurious / Unregistered RFID Card'}
+                  {getDisplayName(activeLiveScan.medicine_name, activeLiveScan.tag_uid)}
                 </h3>
                 <p className="live-product-desc">
                   {isGenuine
@@ -1823,13 +1873,13 @@ function ScanTable({ scans }) {
                 <td>
                   <div className="scan-medicine">
                     <img
-                      src={getMedicineImage(s.medicine_name)}
+                      src={getMedicineImage(s.medicine_name, s.event_type !== 'unknown_tag', s.tag_uid)}
                       alt=""
                       className="table-med-thumb"
                       onError={e => { e.target.style.display = 'none'; }}
                     />
                     <div>
-                      <strong>{s.medicine_name || 'Unregistered Tag'}</strong>
+                      <strong>{getDisplayName(s.medicine_name, s.tag_uid)}</strong>
                       <small><code>{s.tag_uid || '—'}</code></small>
                     </div>
                   </div>
