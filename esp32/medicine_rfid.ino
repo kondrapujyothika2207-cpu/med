@@ -284,17 +284,56 @@ void processTagScan(const String& uid) {
 }
 
 // ----------------------------------------------------
-// AUTO-CONNECT TO WI-FI (EVERY TIME)
+// WI-FI DIAGNOSTICS & AUTO-CONNECT
 // ----------------------------------------------------
+const char* getWifiStatusText(wl_status_t status) {
+  switch (status) {
+    case WL_IDLE_STATUS:     return "Idle";
+    case WL_NO_SSID_AVAIL:   return "SSID not found! (Hotspot is 5GHz or turned off)";
+    case WL_SCAN_COMPLETED:  return "Scan completed";
+    case WL_CONNECTED:       return "Connected";
+    case WL_CONNECT_FAILED:  return "Connect failed! (Check password / WPA2)";
+    case WL_CONNECTION_LOST: return "Connection lost";
+    case WL_DISCONNECTED:    return "Disconnected";
+    default:                 return "Unknown";
+  }
+}
+
+void scanNearbyWifi() {
+  Serial.println("\n--- Scanning for visible 2.4GHz Wi-Fi networks ---");
+  int n = WiFi.scanNetworks();
+  if (n <= 0) {
+    Serial.println("  ❌ No networks found! (Check 2.4GHz band / Hotspot enabled)");
+  } else {
+    Serial.printf("  Found %d network(s):\n", n);
+    bool hotspotFound = false;
+    for (int i = 0; i < n; ++i) {
+      String ssid = WiFi.SSID(i);
+      Serial.printf("   %2d: %-30s | Signal: %d dBm | Ch: %2d\n", i + 1, ssid.c_str(), WiFi.RSSI(i), WiFi.channel(i));
+      if (ssid == WIFI_SSID) hotspotFound = true;
+    }
+    if (hotspotFound) {
+      Serial.println("  ✓ Hotspot found in scan! Checking password & WPA2 security...");
+    } else {
+      Serial.println("  ❌ Hotspot NOT visible in 2.4GHz scan! Your phone is broadcasting on 5GHz.");
+      Serial.println("     FIX: On Nothing Phone, turn on 'Extend compatibility' or set AP Band to 2.4 GHz.");
+    }
+  }
+  Serial.println("--------------------------------------------------\n");
+}
+
 void connectWifi() {
+  WiFi.disconnect(true); // Clear previous state & NVS flash cache
+  delay(150);
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(true);
+
+  Serial.printf("\nConnecting to Wi-Fi SSID: '%s'...\n", WIFI_SSID);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  Serial.printf("\nConnecting to Wi-Fi SSID: '%s'", WIFI_SSID);
 
   unsigned long start = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - start < 20000) {
-    delay(350);
+  while (WiFi.status() != WL_CONNECTED && millis() - start < 15000) {
+    delay(400);
     Serial.print(".");
     // Blink Blue LED while connecting
     digitalWrite(BLUE_LED_PIN, !digitalRead(BLUE_LED_PIN));
@@ -309,6 +348,9 @@ void connectWifi() {
     Serial.println(WiFi.localIP());
     Serial.print("  Gateway:        ");
     Serial.println(WiFi.gatewayIP());
+    Serial.print("  Signal (RSSI):  ");
+    Serial.print(WiFi.RSSI());
+    Serial.println(" dBm");
     Serial.print("  Target Backend: ");
     Serial.println(API_BASE_URL);
     Serial.println("=================================================");
@@ -316,7 +358,8 @@ void connectWifi() {
     sendHeartbeat();
   } else {
     digitalWrite(BLUE_LED_PIN, LOW); // Turn off if not connected
-    Serial.println("✗ Connection failed. Auto-reconnecting in background...");
+    Serial.printf("❌ Connection failed! Reason: %s (Code: %d)\n", getWifiStatusText(WiFi.status()), (int)WiFi.status());
+    scanNearbyWifi();
   }
 }
 
