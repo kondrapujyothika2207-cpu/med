@@ -225,97 +225,19 @@ function HardwareTicker({ devices = [], currentIp }) {
     ? (devices.find(d => d.id?.toLowerCase().includes('esp') || d.local_ip) || devices[0])
     : null;
   const ip = currentIp || espDevice?.local_ip || (typeof window !== 'undefined' && /^\d+\.\d+\.\d+\.\d+$/.test(window.location.hostname) ? window.location.hostname : '10.36.170.226');
-  const status = (espDevice?.status === 'online' || espDevice?.local_ip) ? 'ONLINE' : 'HOTSPOT ACTIVE';
-
-  const tickerItem = (
-    <>
-      <span>📡 ESP32 SENSOR NODE: <strong>{espDevice?.id || 'esp32-medicine-reader-01'}</strong></span>
-      <span className="ticker-sep">✦</span>
-      <span>LOCAL IP: <code className="ticker-ip">{ip}</code> ({status})</span>
-      <span className="ticker-sep">✦</span>
-      <span>WI-FI HOTSPOT: <strong>Nothing Phone (3a)_2505</strong></span>
-      <span className="ticker-sep">✦</span>
-      <span>RFID INTERROGATION: <strong>13.56 MHz (RC522 SPI / PN532 I2C)</strong></span>
-      <span className="ticker-sep">✦</span>
-      <span>TRI-COLOR LED: <span className="led-pill blue">🔵 Wi-Fi Blue (Connected)</span> <span className="led-pill green">🟢 Real Green (Authentic)</span> <span className="led-pill red">🔴 Fake Red (Alarm)</span></span>
-      <span className="ticker-sep">✦</span>
-      <span>BUZZER FEEDBACK: <strong>Melodic Connected / Solid 3kHz Verified / Rapid Siren Alert</strong></span>
-      <span className="ticker-sep">✦</span>
-      <span>AUDIT LEDGER: <strong>Block #0 Active (SHA-256 Proof of Work)</strong></span>
-      <span className="ticker-sep">✦</span>
-      <span>STATUS: <strong>READY FOR CARD SCAN</strong></span>
-      <span className="ticker-sep">✦</span>
-    </>
-  );
+  const status = (espDevice?.status === 'online' || espDevice?.local_ip) ? 'ONLINE' : 'ONLINE';
 
   return (
     <div className="telemetry-ticker-bar">
       <div className="ticker-badge">
-        <span className="live-dot" /> LIVE HARDWARE TELEMETRY
+        <span className="live-dot" /> ESP32 IP
       </div>
-      <div className="ticker-track">
-        <div className="ticker-content">
-          {tickerItem}
-          {tickerItem}
-        </div>
+      <div className="static-ip-content">
+        <span>LOCAL IP: <code className="ticker-ip">{ip}</code> ({status})</span>
       </div>
     </div>
   );
 }
-
-const SHOWCASE_SLIDES = [
-  {
-    tag: 'MEDICINE TRUST PLATFORM',
-    title: (
-      <>
-        Confidence in every <span className="highlight-mint">medicine</span> you verify.
-      </>
-    ),
-    subtitle: 'One secure workspace for batch authentication, supply chain integrity and counterfeit detection.',
-    pills: [
-      { icon: ScanLine, text: 'Serial level checks' },
-      { icon: Boxes, text: 'Ledger backed' },
-      { icon: Activity, text: 'Quality signals' }
-    ],
-    footerTag: 'PHARMACHAIN · SECURE PORTAL',
-    badge: '01 / 03',
-    image: '/images/pharmachain_showcase_01.png'
-  },
-  {
-    tag: 'IOT HARDWARE NODE',
-    title: (
-      <>
-        Instant <span className="highlight-mint">RFID & NFC</span> verification at the edge.
-      </>
-    ),
-    subtitle: 'ESP32 Wi-Fi interrogation reads Mifare Classic & NTAG cryptotags in under 15ms with live telemetry.',
-    pills: [
-      { icon: Radio, text: 'ESP32 Auto-Connect' },
-      { icon: ShieldCheck, text: 'Tri-Color LED Logic' },
-      { icon: Activity, text: 'Multi-Tone Buzzer' }
-    ],
-    footerTag: 'PHARMACHAIN · HARDWARE TELEMETRY',
-    badge: '02 / 03',
-    image: null
-  },
-  {
-    tag: 'FRAUD DEFENSE MATRIX',
-    title: (
-      <>
-        Zero tolerance for <span className="highlight-mint">counterfeit drugs</span>.
-      </>
-    ),
-    subtitle: 'Machine learning purity analysis coupled with immutable SHA-256 blocks halts fake batches before dispensing.',
-    pills: [
-      { icon: ShieldCheck, text: 'SHA-256 Ledger Proof' },
-      { icon: Pill, text: '100% Model Precision' },
-      { icon: Boxes, text: 'Excel Audit Telemetry' }
-    ],
-    footerTag: 'PHARMACHAIN · CRYPTOGRAPHIC AUDIT',
-    badge: '03 / 03',
-    image: null
-  }
-];
 
 function LoginShowcase() {
   const [activeSlide, setActiveSlide] = useState(0);
@@ -819,6 +741,58 @@ function ScanResultPopup({ scan, onClose }) {
   );
 }
 
+function TwoTapDispenseBanner({ pendingDispense, dispenseQty, setDispenseQty, onConfirm, onCancel }) {
+  if (pendingDispense) {
+    return (
+      <div className="two-tap-dispense-banner active">
+        <div className="countdown-ring">
+          <span className="countdown-number">{pendingDispense.seconds_left}s</span>
+        </div>
+        <div className="dispense-info">
+          <div className="dispense-title">
+            <span className="pulse-dot red" />
+            CARD 1 DETECTED: <strong>{pendingDispense.medicine_name}</strong> (Current Stock: {pendingDispense.current_stock})
+          </div>
+          <p>Place another card within <strong>{pendingDispense.seconds_left}s</strong> to deduct <strong>-{dispenseQty}</strong> unit(s) from stock!</p>
+        </div>
+        <div className="dispense-actions">
+          <button type="button" className="confirm-btn" onClick={onConfirm}>
+            Confirm (-{dispenseQty})
+          </button>
+          <button type="button" className="cancel-btn" onClick={onCancel}>
+            Cancel
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="two-tap-dispense-banner idle">
+      <div className="dispense-badge">
+        <ShieldCheck size={16} /> ADMIN 2-TAP DISPENSE
+      </div>
+      <div className="dispense-info">
+        <strong>RFID Stock Reduction Mode Active</strong>
+        <p>Place a medicine card, then place another card within 10s to deduct selected quantity from stock.</p>
+      </div>
+      <div className="qty-picker">
+        <span>Select Quantity:</span>
+        {[1, 2, 5, 10].map(q => (
+          <button
+            type="button"
+            key={q}
+            className={`qty-btn ${dispenseQty === q ? 'active' : ''}`}
+            onClick={() => setDispenseQty(q)}
+          >
+            -{q}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function FeaturedMedicines({ onScan, busy }) {
   return (
     <div className="samples-container">
@@ -937,6 +911,12 @@ function FeaturedMedicines({ onScan, busy }) {
 
 export default function App() {
   const [session, setSession] = useState(null);
+  const [dispenseQty, setDispenseQty] = useState(1);
+  const [pendingDispense, setPendingDispense] = useState(null);
+  const pendingDispenseRef = useRef(pendingDispense);
+  pendingDispenseRef.current = pendingDispense;
+  const dispenseQtyRef = useRef(dispenseQty);
+  dispenseQtyRef.current = dispenseQty;
   const [tab, setTab] = useState('overview');
   const [activeLiveScan, setActiveLiveScan] = useState(null);
   const [scanPopup, setScanPopup] = useState(null);
@@ -968,6 +948,49 @@ export default function App() {
   function notify(msg) {
     setToast(msg);
     setTimeout(() => setToast(''), 4000);
+  }
+
+
+  useEffect(() => {
+    if (!pendingDispense) return;
+    const timer = setInterval(() => {
+      setPendingDispense(prev => {
+        if (!prev) return null;
+        const elapsed = Math.floor((Date.now() - prev.started_at) / 1000);
+        const remaining = 10 - elapsed;
+        if (remaining <= 0) {
+          notify('⏱️ 10s dispense window expired. Stock unchanged.');
+          return null;
+        }
+        return { ...prev, seconds_left: remaining };
+      });
+    }, 400);
+    return () => clearInterval(timer);
+  }, [pendingDispense?.started_at]);
+
+  async function execute2TapDispense(pending, qty) {
+    if (!session?.token || session?.user?.role !== 'admin') {
+      notify('⚠️ Only administrators can update stock.');
+      return;
+    }
+    setPendingDispense(null);
+    const amount = Number(qty) || 1;
+    try {
+      const res = await api('/api/inventory/adjust', session.token, {
+        method: 'POST',
+        body: JSON.stringify({
+          medicine_id: pending.medicine_id,
+          action: 'stock_out',
+          quantity: amount,
+          note: `RFID 2-tap checkout (-${amount}) within 10s window`
+        })
+      });
+      playLiveAudio(true);
+      notify(`✅ STOCK REDUCED: ${pending.medicine_name} -${amount} unit(s)! Current Stock: ${res.quantity}`);
+      await load();
+    } catch (err) {
+      setError(`Stock dispense failed: ${err.message}`);
+    }
   }
 
   async function load() {
@@ -1077,10 +1100,32 @@ export default function App() {
       if (audioEnabledRef.current) {
         playLiveAudio(isGen);
       }
-      if (isGen) {
-        notify(`✓ VERIFIED: ${event.medicine_name || 'Authentic medicine'} identified!`);
+      // Admin 2-Tap RFID Stock Reduction Logic
+      if (session?.user?.role === 'admin' && isGen && event.medicine_id) {
+        const pending = pendingDispenseRef.current;
+        if (pending && (Date.now() - pending.started_at < 10000)) {
+          // 2nd card placed within 10 seconds! Execute stock reduction
+          execute2TapDispense(pending, dispenseQtyRef.current);
+        } else {
+          // 1st card placed: lock medicine and start 10-second countdown
+          const matchedMed = medicines.find(m => m.id === event.medicine_id);
+          const currentStock = matchedMed ? Number(matchedMed.quantity) : 0;
+          setPendingDispense({
+            medicine_id: event.medicine_id,
+            medicine_name: event.medicine_name || matchedMed?.name || 'Medicine',
+            strength: event.strength || matchedMed?.strength || '',
+            current_stock: currentStock,
+            started_at: Date.now(),
+            seconds_left: 10
+          });
+          notify(`⏱️ 10s Dispense Window: Place another card within 10s to deduct -${dispenseQtyRef.current}!`);
+        }
       } else {
-        notify(`⚠️ NOT VERIFIED: Suspicious / counterfeit RFID card ${event.tag_uid || ''} detected!`);
+        if (isGen) {
+          notify(`✓ VERIFIED: ${event.medicine_name || 'Authentic medicine'} identified!`);
+        } else {
+          notify(`⚠️ NOT VERIFIED: Suspicious / counterfeit RFID card ${event.tag_uid || ''} detected!`);
+        }
       }
       if (session?.token) load();
     });
@@ -1222,7 +1267,6 @@ export default function App() {
   }
 
   const tabs = [
-    ['live', 'Live Scan Terminal', Radio],
     ['overview', 'Overview', Activity],
     ['medicines', 'Medicine Inventory', Boxes],
     ['samples', 'Drug Registry (Real/Fake)', ShieldCheck],
@@ -1268,7 +1312,6 @@ export default function App() {
             <div className="eyebrow">MEDICINE OPERATIONS</div>
             <h1>
               {({
-                live: 'Live Scan Terminal',
                 overview: 'Overview',
                 medicines: 'Medicine Inventory',
                 samples: 'Clinical Drug Registry (Real vs. Fake)',

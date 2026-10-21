@@ -451,18 +451,19 @@ html{scroll-behavior:smooth;scroll-padding-top:90px}.landing-page{overflow:hidde
   100% { box-shadow: 0 0 20px 4px #0c9b8725; }
 }
 
-/* Live Hardware Telemetry Scrolling Marquee */
+/* Static Hardware Telemetry IP Bar (No Scrolling) */
 .telemetry-ticker-bar {
   background: #0f2c30;
   color: #cbe9e3;
   display: flex;
   align-items: center;
-  overflow: hidden;
+  gap: 16px;
   height: 38px;
   border-bottom: 1px solid #1a494d;
-  font-size: 11px;
+  font-size: 12px;
   position: relative;
   z-index: 10;
+  padding-right: 16px;
 }
 .ticker-badge {
   background: #087d70;
@@ -479,24 +480,12 @@ html{scroll-behavior:smooth;scroll-padding-top:90px}.landing-page{overflow:hidde
   box-shadow: 4px 0 12px #00000030;
   z-index: 2;
 }
-.ticker-track {
-  overflow: hidden;
-  white-space: nowrap;
-  flex: 1;
-}
-.ticker-content {
-  display: inline-flex;
+.static-ip-content {
+  display: flex;
   align-items: center;
-  gap: 20px;
-  animation: marquee-scroll 65s linear infinite;
-  padding-left: 20px;
-}
-.ticker-content:hover {
-  animation-play-state: paused;
-}
-@keyframes marquee-scroll {
-  0% { transform: translateX(0%); }
-  100% { transform: translateX(-50%); }
+  gap: 12px;
+  font-size: 12px;
+  font-weight: 500;
 }
 .ticker-sep {
   color: #2ed3b3;
@@ -2030,3 +2019,174 @@ html{scroll-behavior:smooth;scroll-padding-top:90px}.landing-page{overflow:hidde
 
 
 
+
+
+/* 2-Tap RFID Stock Dispense Controller */
+.two-tap-dispense-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 16px 22px;
+  border-radius: 14px;
+  margin-bottom: 24px;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+}
+
+.two-tap-dispense-banner.idle {
+  background: linear-gradient(135deg, #f0fdf4 0%, #e6fcf5 100%);
+  border: 1px solid #bbf7d0;
+}
+
+.two-tap-dispense-banner.active {
+  background: linear-gradient(135deg, #fff1f2 0%, #fef2f2 100%);
+  border: 2px solid #ef4444;
+  animation: pulse-border 1.5s infinite;
+  box-shadow: 0 8px 24px rgba(239, 68, 68, 0.15);
+}
+
+@keyframes pulse-border {
+  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.35); }
+  70% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+
+.countdown-ring {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: #fee2e2;
+  border: 3px solid #ef4444;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.countdown-number {
+  font-size: 18px;
+  font-weight: 800;
+  color: #b91c1c;
+  font-family: monospace;
+}
+
+.dispense-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  flex-shrink: 0;
+}
+
+.dispense-info {
+  flex: 1;
+}
+
+.dispense-info strong {
+  display: block;
+  font-size: 15px;
+  color: #0f172a;
+  margin-bottom: 2px;
+}
+
+.dispense-info p {
+  margin: 0;
+  font-size: 13px;
+  color: #475569;
+}
+
+.dispense-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #991b1b;
+  margin-bottom: 3px;
+}
+
+.pulse-dot.red {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ef4444;
+  animation: pulse 1s infinite alternate;
+}
+
+.qty-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #ffffff;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+}
+
+.qty-picker span {
+  font-size: 12px;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.qty-btn {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.qty-btn:hover {
+  background: #e2e8f0;
+}
+
+.qty-btn.active {
+  background: #0d9488;
+  color: #ffffff;
+  border-color: #0d9488;
+}
+
+.dispense-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dispense-actions .confirm-btn {
+  background: #ef4444;
+  color: #ffffff;
+  border: none;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.dispense-actions .confirm-btn:hover {
+  background: #dc2626;
+}
+
+.dispense-actions .cancel-btn {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+}
