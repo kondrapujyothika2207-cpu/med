@@ -376,7 +376,7 @@ function Login({ onLogin, devices = [], onClose }) {
 
   return (
     <main className="login-shell">
-      <HardwareTicker devices={devices} currentIp={currentLocalIp} />
+      <HardwareTicker devices={devices} />
       <div className="login-page-topbar">
         <button className="back-home-btn" onClick={onClose || (() => {})}>
           ← Back to Live Scanner
