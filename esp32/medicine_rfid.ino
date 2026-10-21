@@ -83,12 +83,14 @@
 const char* WIFI_SSID     = "Nothing Phone (3a)_2505";
 const char* WIFI_PASSWORD = "praveen DSP";
 
-// Put your Render URL here (e.g. "https://med-xxxx.onrender.com")
-// Or for local testing: "http://YOUR_PC_IP:4000"
-const char* API_BASE_URL   = "https://med-rfid.onrender.com"; // UPDATE WITH YOUR RENDER URL
+// Target Backends: Primary Cloud Render URL + Local Fallback
+const char* API_BASE_URL_PRIMARY  = "https://med-rfid.onrender.com"; // Primary cloud website
+const char* API_BASE_URL_FALLBACK = "http://10.36.170.52:4000";     // Local laptop backend
+String currentApiBaseUrl          = API_BASE_URL_PRIMARY;
+
 const char* DEVICE_API_KEY = "esp32-device-secure-key-9988776655";
 const char* DEVICE_ID      = "esp32-medicine-reader-01";
-const char* FIRMWARE_VER   = "1.3.0";
+const char* FIRMWARE_VER   = "1.4.0";
 
 unsigned long lastHeartbeat = 0;
 unsigned long lastScanSent  = 0;
@@ -156,19 +158,31 @@ void buzzerFakeMedicine() {
 
 // ----------------------------------------------------
 // LED FEEDBACK MODES
+// (Blue turns OFF during scan; Green or Red turns ON;
+//  after scan, Blue turns back ON if Wi-Fi connected)
 // ----------------------------------------------------
 void indicateRealMedicine() {
-  Serial.println(">>> [FEEDBACK] REAL MEDICINE CONFIRMED -> GREEN LED ON");
-  digitalWrite(GREEN_LED_PIN, HIGH);
+  Serial.println(">>> [FEEDBACK] REAL MEDICINE CONFIRMED -> GREEN LED ON (BLUE LED OFF)");
+  digitalWrite(BLUE_LED_PIN, LOW);  // Turn off Blue LED during scan result
   digitalWrite(RED_LED_PIN, LOW);
+  digitalWrite(GREEN_LED_PIN, HIGH); // Solid Green ON for authentic medicine
+
   buzzerRealMedicine();
   delay(1800);
-  digitalWrite(GREEN_LED_PIN, LOW);
+
+  digitalWrite(GREEN_LED_PIN, LOW); // Turn off Green LED
+
+  // Restore Blue LED if Wi-Fi is connected
+  if (WiFi.status() == WL_CONNECTED) {
+    digitalWrite(BLUE_LED_PIN, HIGH);
+  }
 }
 
 void indicateFakeMedicine() {
-  Serial.println(">>> [FEEDBACK] WARNING: FAKE / UNVERIFIED TAG -> RED LED ALARM");
+  Serial.println(">>> [FEEDBACK] WARNING: FAKE / UNVERIFIED TAG -> RED LED ALARM (BLUE LED OFF)");
+  digitalWrite(BLUE_LED_PIN, LOW);  // Turn off Blue LED during scan result
   digitalWrite(GREEN_LED_PIN, LOW);
+
   // Flash red LED and sound siren
   for (int i = 0; i < 4; i++) {
     digitalWrite(RED_LED_PIN, HIGH);
@@ -178,23 +192,20 @@ void indicateFakeMedicine() {
     noTone(BUZZER_PIN);
     delay(80);
   }
-  digitalWrite(RED_LED_PIN, LOW);
+  digitalWrite(RED_LED_PIN, LOW); // Turn off Red LED
+
+  // Restore Blue LED if Wi-Fi is connected
+  if (WiFi.status() == WL_CONNECTED) {
+    digitalWrite(BLUE_LED_PIN, HIGH);
+  }
 }
 
 // ----------------------------------------------------
-// POST JSON TO SERVER & RECEIVE AUTHENTICATION RESULT
+// HTTP HELPER (WITH AUTO-FALLBACK BETWEEN RENDER & LOCAL)
 // ----------------------------------------------------
-bool postScanToServer(const String& path, JsonDocument& doc, bool& outIsGenuine, String& outMedName) {
-  outIsGenuine = false;
-  outMedName = "";
-
-  if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("[ERROR] Cannot send scan: Wi-Fi disconnected!");
-    return false;
-  }
-
+bool executeHttpJsonPost(const String& baseUrl, const String& path, JsonDocument& doc, int& outCode, String& outResponse) {
   HTTPClient http;
-  String url = String(API_BASE_URL) + path;
+  String url = baseUrl + path;
 
   if (url.startsWith("https://")) {
     WiFiClientSecure client;
@@ -212,13 +223,42 @@ bool postScanToServer(const String& path, JsonDocument& doc, bool& outIsGenuine,
   String requestBody;
   serializeJson(doc, requestBody);
 
-  int httpCode = http.POST(requestBody);
-  String response = http.getString();
+  outCode = http.POST(requestBody);
+  outResponse = (outCode > 0) ? http.getString() : HTTPClient::errorToString(outCode);
   http.end();
 
-  Serial.printf("[HTTP %s] Status: %d | Response: %s\n", path.c_str(), httpCode, response.c_str());
+  Serial.printf("[HTTP POST %s] Status: %d | Response: %s\n", url.c_str(), outCode, outResponse.c_str());
+  return (outCode >= 200 && outCode < 300);
+}
 
-  if (httpCode >= 200 && httpCode < 300) {
+// ----------------------------------------------------
+// POST JSON TO SERVER & RECEIVE AUTHENTICATION RESULT
+// ----------------------------------------------------
+bool postScanToServer(const String& path, JsonDocument& doc, bool& outIsGenuine, String& outMedName) {
+  outIsGenuine = false;
+  outMedName = "";
+
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("[ERROR] Cannot send scan: Wi-Fi disconnected!");
+    return false;
+  }
+
+  int httpCode = 0;
+  String response = "";
+  bool ok = executeHttpJsonPost(currentApiBaseUrl, path, doc, httpCode, response);
+
+  // If primary website returns 404 or connection fails, auto-fallback to alternate URL
+  if (!ok && (httpCode == 404 || httpCode < 0)) {
+    String alternativeUrl = (currentApiBaseUrl == API_BASE_URL_PRIMARY) ? API_BASE_URL_FALLBACK : API_BASE_URL_PRIMARY;
+    Serial.printf("[BACKEND] Retrying scan with alternative backend: %s\n", alternativeUrl.c_str());
+    ok = executeHttpJsonPost(alternativeUrl, path, doc, httpCode, response);
+    if (ok) {
+      currentApiBaseUrl = alternativeUrl;
+      Serial.printf("[BACKEND] Successfully switched active backend to: %s\n", currentApiBaseUrl.c_str());
+    }
+  }
+
+  if (ok) {
     JsonDocument resDoc;
     DeserializationError err = deserializeJson(resDoc, response);
     if (!err) {
@@ -240,27 +280,26 @@ void sendHeartbeat() {
 
   Serial.printf("[HEARTBEAT] Publishing live ESP32 IP: %s\n", WiFi.localIP().toString().c_str());
 
-  HTTPClient http;
-  String url = String(API_BASE_URL) + "/api/device/heartbeat";
-  if (url.startsWith("https://")) {
-    WiFiClientSecure client;
-    client.setInsecure();
-    http.begin(client, url);
-  } else {
-    WiFiClient client;
-    http.begin(client, url);
-  }
+  int httpCode = 0;
+  String response = "";
+  bool ok = executeHttpJsonPost(currentApiBaseUrl, "/api/device/heartbeat", doc, httpCode, response);
 
-  http.setTimeout(8000);
-  http.addHeader("Content-Type", "application/json");
-  http.addHeader("X-Device-Key", DEVICE_API_KEY);
-  String body;
-  serializeJson(doc, body);
-  http.POST(body);
-  http.end();
+  // If primary returns 404 or connection fails, auto-fallback to alternate URL
+  if (!ok && (httpCode == 404 || httpCode < 0)) {
+    String alternativeUrl = (currentApiBaseUrl == API_BASE_URL_PRIMARY) ? API_BASE_URL_FALLBACK : API_BASE_URL_PRIMARY;
+    Serial.printf("[HEARTBEAT] Retrying heartbeat with alternative backend: %s\n", alternativeUrl.c_str());
+    ok = executeHttpJsonPost(alternativeUrl, "/api/device/heartbeat", doc, httpCode, response);
+    if (ok) {
+      currentApiBaseUrl = alternativeUrl;
+      Serial.printf("[HEARTBEAT] Active backend updated to: %s\n", currentApiBaseUrl.c_str());
+    }
+  }
 }
 
 void processTagScan(const String& uid) {
+  // Turn OFF Blue LED immediately upon card detection
+  digitalWrite(BLUE_LED_PIN, LOW);
+
   JsonDocument doc;
   doc["tag_uid"]   = uid;
   doc["device_id"] = DEVICE_ID;
@@ -276,10 +315,15 @@ void processTagScan(const String& uid) {
 
   if (ok && isGenuine) {
     Serial.printf("✓ AUTHENTIC MEDICINE: %s\n", medName.c_str());
-    indicateRealMedicine();
+    indicateRealMedicine(); // Green LED ON for 2s (Blue is OFF)
   } else {
     Serial.println("✗ SUSPECT / COUNTERFEIT MEDICINE ALERT!");
-    indicateFakeMedicine();
+    indicateFakeMedicine(); // Red LED flashes with alarm (Blue is OFF)
+  }
+
+  // Restore Blue LED if Wi-Fi remains connected
+  if (WiFi.status() == WL_CONNECTED) {
+    digitalWrite(BLUE_LED_PIN, HIGH);
   }
 }
 
@@ -352,7 +396,7 @@ void connectWifi() {
     Serial.print(WiFi.RSSI());
     Serial.println(" dBm");
     Serial.print("  Target Backend: ");
-    Serial.println(API_BASE_URL);
+    Serial.println(currentApiBaseUrl);
     Serial.println("=================================================");
     buzzerWifiConnected();
     sendHeartbeat();
