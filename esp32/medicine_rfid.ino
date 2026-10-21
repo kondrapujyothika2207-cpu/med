@@ -21,30 +21,25 @@
  * 
  * --- WIRING PINOUT GUIDE ---
  * 
- * 1) LEDS & BUZZER WIRING:
- *    - Blue LED (+)  -> GPIO 2  (Can also use onboard blue LED)
- *    - Green LED (+) -> GPIO 12 (via 220 ohm resistor to GND)
- *    - Red LED (+)   -> GPIO 14 (via 220 ohm resistor to GND)
- *    - Buzzer (+)    -> GPIO 13 (Buzzer (-) to GND)
- * 
- * 2) RC522 (MFRC522) SPI WIRING (DEFAULT):
- *    - SDA (SS)      -> GPIO 5
- *    - SCK           -> GPIO 18
- *    - MOSI          -> GPIO 23
- *    - MISO          -> GPIO 19
- *    - IRQ           -> (Not connected)
- *    - GND           -> GND
- *    - RST           -> GPIO 22
- *    - 3.3V          -> 3.3V (CAUTION: 3.3V ONLY, NOT 5V!)
- * 
- * 3) PN532 I2C WIRING (Alternative):
+ * 1) PN532 I2C 4-WIRE SETUP (PRIMARY DEFAULT):
  *    - SDA           -> GPIO 21
  *    - SCL           -> GPIO 22
- *    - VCC           -> 3.3V or 5V
+ *    - VCC           -> 5V (or 3.3V)
  *    - GND           -> GND
- *    - IRQ           -> GPIO 4
- *    - RST           -> GPIO 5
- *    (Set PN532 DIP Switches: Channel 1=ON, Channel 2=OFF for I2C)
+ *    - IRQ           -> (Leave Disconnected)
+ *    - RST           -> (Leave Disconnected)
+ *    * DIP Switch Settings on PN532:
+ *      Channel 1 (SEL0) = ON  (1)
+ *      Channel 2 (SEL1) = OFF (0)
+ * 
+ * 2) LEDS & BUZZER WIRING:
+ *    - Blue LED (+)  -> GPIO 2  (Wi-Fi Status: Solid ON when connected)
+ *    - Green LED (+) -> GPIO 12 (Real Medicine: Solid ON for 2s)
+ *    - Red LED (+)   -> GPIO 14 (Fake Medicine: Rapid alarm warning flashes)
+ *    - Buzzer (+)    -> GPIO 13 (Audio Feedback: 3 distinct modes)
+ * 
+ * 3) OPTIONAL RC522 SPI WIRING (Alternative if toggled):
+ *    - SDA (SS)=GPIO 5, SCK=GPIO 18, MOSI=GPIO 23, MISO=GPIO 19, RST=GPIO 22, 3.3V=3.3V
  * ==============================================================================
  */
 
@@ -56,10 +51,10 @@
 
 // ====================================================
 // HARDWARE SELECTOR
-// Set USE_RC522 to 1 if using RFID-RC522 (SPI)
-// Set USE_RC522 to 0 if using Adafruit PN532 (I2C)
+// Set USE_RC522 to 0 for PN532 (I2C) - ACTIVE DEFAULT
+// Set USE_RC522 to 1 for RC522 (SPI)
 // ====================================================
-#define USE_RC522 1
+#define USE_RC522 0
 
 #if USE_RC522
   #include <SPI.h>
@@ -70,9 +65,8 @@
 #else
   #include <Wire.h>
   #include <Adafruit_PN532.h>
-  #define PN532_IRQ   4
-  #define PN532_RESET 5
-  Adafruit_PN532 nfc(PN532_IRQ, PN532_RESET, &Wire);
+  // Pure 4-wire I2C setup (VCC, GND, SDA=21, SCL=22). Pass -1, -1 for IRQ and RESET
+  Adafruit_PN532 nfc(-1, -1);
 #endif
 
 // ====================================================
@@ -358,12 +352,21 @@ void setup() {
   rfid.PCD_DumpVersionToSerial();
 #else
   Wire.begin(21, 22);
+  delay(120);
   nfc.begin();
   uint32_t versiondata = nfc.getFirmwareVersion();
   if (!versiondata) {
-    Serial.println("[ERROR] PN532 not detected. Check I2C wiring (SDA=21, SCL=22).");
+    Serial.println("\n[ERROR] PN532 NFC module not responding on I2C (SDA=GPIO 21, SCL=GPIO 22)!");
+    Serial.println("  Troubleshooting Checklist:");
+    Serial.println("  1. DIP Switches: Ensure Channel 1 (SEL0)=ON, Channel 2 (SEL1)=OFF for I2C mode.");
+    Serial.println("  2. Wiring: VCC -> 5V/3.3V, GND -> GND, SDA -> GPIO 21, SCL -> GPIO 22.");
+    Serial.println("  3. Check that the red power LED on the PN532 board is illuminated.");
   } else {
-    Serial.println("✓ Adafruit PN532 Initialized over I2C.");
+    Serial.println("=================================================");
+    Serial.printf("✓ Adafruit PN532 Initialized over I2C! Chip: PN5%02X\n", (versiondata >> 24) & 0xFF);
+    Serial.printf("  Firmware: v%d.%d\n", (versiondata >> 16) & 0xFF, (versiondata >> 8) & 0xFF);
+    Serial.println("  I2C Pins: SDA=GPIO 21, SCL=GPIO 22");
+    Serial.println("=================================================");
     nfc.SAMConfig();
   }
 #endif
