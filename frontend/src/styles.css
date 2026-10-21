@@ -654,3 +654,342 @@ html{scroll-behavior:smooth;scroll-padding-top:90px}.landing-page{overflow:hidde
   line-height: 1.2;
 }
 
+/* ====================================================
+   SPLIT SCREEN LOGIN & PHARMACHAIN SHOWCASE PANEL
+   (Matching Exact Aesthetic of Medicine Trust Platform)
+   ==================================================== */
+.login-shell {
+  min-height: 100vh;
+  display: flex !important;
+  flex-direction: column !important;
+  background: radial-gradient(ellipse at 15% 20%, #ddf5ed, transparent 40%), #f0f5f4 !important;
+  padding: 0 !important;
+  position: relative;
+  place-items: initial !important;
+}
+
+.login-page-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: 1160px;
+  width: 100%;
+  margin: 18px auto 0 auto;
+  padding: 0 24px;
+  box-sizing: border-box;
+}
+
+.back-home-btn {
+  border: 1px solid #cce4de;
+  background: #ffffff;
+  color: #124d45;
+  font-weight: 700;
+  font-size: 12px;
+  padding: 8px 16px;
+  border-radius: 9px;
+  box-shadow: 0 2px 8px #0c36300a;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.back-home-btn:hover {
+  background: #eef8f5;
+  border-color: #0c9b87;
+  transform: translateX(-2px);
+}
+
+.login-topbar-brand {
+  font-size: 12px;
+  font-weight: 700;
+  color: #587974;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.login-split-layout {
+  display: grid;
+  grid-template-columns: 1fr 1.15fr;
+  gap: 36px;
+  max-width: 1140px;
+  width: 100%;
+  margin: 20px auto 40px auto;
+  padding: 0 24px;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.login-form-col {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+.login-form-col .login-card {
+  width: 100%;
+  max-width: 440px;
+  padding: 38px;
+  background: #ffffff;
+  border: 1px solid #e2ebeb;
+  border-radius: 24px;
+  box-shadow: 0 20px 60px #143b3b12;
+}
+
+.login-showcase-col {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+}
+
+/* PharmaChain Dark Emerald Showcase Card */
+.login-showcase-panel {
+  width: 100%;
+  max-width: 520px;
+  min-height: 590px;
+  background: linear-gradient(155deg, #09282b 0%, #061e20 50%, #041618 100%);
+  border-radius: 28px;
+  padding: 40px 36px 32px 36px;
+  color: #ffffff;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 25px 70px #03141635, 0 0 0 1px #1a4f4b45;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-sizing: border-box;
+}
+
+/* Glowing Concentric Orbital Rings */
+.showcase-orbital {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid #2ee0b512;
+  pointer-events: none;
+}
+
+.showcase-orbital.orbit-1 {
+  width: 520px;
+  height: 520px;
+  right: -130px;
+  top: 15%;
+  border-color: #38efc31c;
+}
+
+.showcase-orbital.orbit-2 {
+  width: 720px;
+  height: 720px;
+  right: -230px;
+  top: 5%;
+  border-style: solid;
+  border-color: #38efc312;
+}
+
+.showcase-orbital.orbit-3 {
+  width: 920px;
+  height: 920px;
+  right: -330px;
+  top: -5%;
+  border-style: dashed;
+  border-color: #38efc30a;
+}
+
+/* Showcase Header */
+.showcase-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: relative;
+  z-index: 2;
+}
+
+.showcase-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.showcase-brand-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 13px;
+  background: #17b39f;
+  color: #ffffff;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 6px 18px #17b39f40;
+}
+
+.showcase-brand-name {
+  font-family: Manrope, sans-serif;
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+  color: #ffffff;
+}
+
+.showcase-slide-controls {
+  display: flex;
+  gap: 7px;
+}
+
+.showcase-dot-btn {
+  width: 22px;
+  height: 5px;
+  border-radius: 3px;
+  background: #ffffff25;
+  border: 0;
+  padding: 0;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+
+.showcase-dot-btn.active {
+  background: #3ee6be;
+  width: 36px;
+  box-shadow: 0 0 10px #3ee6be80;
+}
+
+/* Showcase Body */
+.showcase-body {
+  position: relative;
+  z-index: 2;
+  margin: 32px 0;
+}
+
+.showcase-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  color: #48e5c2;
+  text-transform: uppercase;
+  margin-bottom: 22px;
+}
+
+.showcase-live-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #48e5c2;
+  box-shadow: 0 0 10px #48e5c2;
+}
+
+.showcase-heading {
+  font-family: Manrope, sans-serif;
+  font-size: clamp(30px, 3.2vw, 38px);
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -1.2px;
+  color: #ffffff;
+  margin: 0 0 18px 0;
+}
+
+.highlight-mint {
+  color: #48e5c2;
+  text-shadow: 0 0 20px #48e5c235;
+}
+
+.showcase-subtext {
+  font-size: 14px;
+  line-height: 1.75;
+  color: #94b5b0;
+  margin: 0 0 30px 0;
+  max-width: 440px;
+}
+
+/* Feature Pills Row */
+.showcase-pills-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.showcase-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #ffffff0e;
+  border: 1px solid #ffffff1e;
+  border-radius: 30px;
+  padding: 9px 15px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #e2f4f0;
+  backdrop-filter: blur(8px);
+  transition: all 0.25s ease;
+}
+
+.showcase-pill:hover {
+  background: #ffffff1a;
+  border-color: #48e5c250;
+  transform: translateY(-2px);
+}
+
+.showcase-pill-icon {
+  color: #48e5c2;
+}
+
+/* Showcase Footer */
+.showcase-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid #ffffff14;
+  padding-top: 22px;
+  position: relative;
+  z-index: 2;
+}
+
+.showcase-footer-tag {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: #618781;
+  text-transform: uppercase;
+}
+
+.showcase-footer-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.showcase-nav-btn {
+  background: #ffffff10;
+  border: 1px solid #ffffff20;
+  color: #b3d5cf;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.showcase-nav-btn:hover {
+  background: #ffffff20;
+  color: #ffffff;
+  border-color: #48e5c280;
+}
+
+.showcase-index-counter {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: #8bb5ad;
+  font-family: monospace;
+}
+
+@media (max-width: 960px) {
+  .login-split-layout {
+    grid-template-columns: 1fr;
+    gap: 28px;
+    margin-top: 15px;
+  }
+}
+
+

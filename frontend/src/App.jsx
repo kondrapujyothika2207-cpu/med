@@ -173,6 +173,149 @@ function HardwareTicker({ devices = [] }) {
   );
 }
 
+const SHOWCASE_SLIDES = [
+  {
+    tag: 'MEDICINE TRUST PLATFORM',
+    title: (
+      <>
+        Confidence in every <span className="highlight-mint">medicine</span> you verify.
+      </>
+    ),
+    subtitle: 'One secure workspace for batch authentication, supply chain integrity and counterfeit detection.',
+    pills: [
+      { icon: ScanLine, text: 'Serial level checks' },
+      { icon: Boxes, text: 'Ledger backed' },
+      { icon: Activity, text: 'Quality signals' }
+    ],
+    footerTag: 'PHARMACHAIN · SECURE PORTAL',
+    badge: '01 / 03',
+    image: '/images/pharmachain_showcase_01.png'
+  },
+  {
+    tag: 'IOT HARDWARE NODE',
+    title: (
+      <>
+        Instant <span className="highlight-mint">RFID & NFC</span> verification at the edge.
+      </>
+    ),
+    subtitle: 'ESP32 Wi-Fi interrogation reads Mifare Classic & NTAG cryptotags in under 15ms with live telemetry.',
+    pills: [
+      { icon: Radio, text: 'ESP32 Auto-Connect' },
+      { icon: ShieldCheck, text: 'Tri-Color LED Logic' },
+      { icon: Activity, text: 'Multi-Tone Buzzer' }
+    ],
+    footerTag: 'PHARMACHAIN · HARDWARE TELEMETRY',
+    badge: '02 / 03',
+    image: null
+  },
+  {
+    tag: 'FRAUD DEFENSE MATRIX',
+    title: (
+      <>
+        Zero tolerance for <span className="highlight-mint">counterfeit drugs</span>.
+      </>
+    ),
+    subtitle: 'Machine learning purity analysis coupled with immutable SHA-256 blocks halts fake batches before dispensing.',
+    pills: [
+      { icon: ShieldCheck, text: 'SHA-256 Ledger Proof' },
+      { icon: Pill, text: '100% Model Precision' },
+      { icon: Boxes, text: 'Excel Audit Telemetry' }
+    ],
+    footerTag: 'PHARMACHAIN · CRYPTOGRAPHIC AUDIT',
+    badge: '03 / 03',
+    image: null
+  }
+];
+
+function LoginShowcase() {
+  const [activeSlide, setActiveSlide] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setActiveSlide(prev => (prev + 1) % SHOWCASE_SLIDES.length);
+    }, 6500);
+    return () => clearInterval(timer);
+  }, []);
+
+  const slide = SHOWCASE_SLIDES[activeSlide];
+
+  return (
+    <div className="login-showcase-panel">
+      {/* Concentric orbital rings */}
+      <div className="showcase-orbital orbit-1" />
+      <div className="showcase-orbital orbit-2" />
+      <div className="showcase-orbital orbit-3" />
+
+      {/* Top Header */}
+      <div className="showcase-header">
+        <div className="showcase-brand">
+          <div className="showcase-brand-icon">
+            <ShieldCheck size={22} />
+          </div>
+          <span className="showcase-brand-name">PharmaChain</span>
+        </div>
+        <div className="showcase-slide-controls">
+          {SHOWCASE_SLIDES.map((_, idx) => (
+            <button
+              key={idx}
+              type="button"
+              className={`showcase-dot-btn ${activeSlide === idx ? 'active' : ''}`}
+              onClick={() => setActiveSlide(idx)}
+              aria-label={`Slide ${idx + 1}`}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="showcase-body">
+        <div className="showcase-tag">
+          <span className="showcase-live-dot" /> {slide.tag}
+        </div>
+        <h2 className="showcase-heading">{slide.title}</h2>
+        <p className="showcase-subtext">{slide.subtitle}</p>
+
+        {/* Feature Pills */}
+        <div className="showcase-pills-row">
+          {slide.pills.map((p, i) => {
+            const Icon = p.icon;
+            return (
+              <div key={i} className="showcase-pill">
+                <Icon size={14} className="showcase-pill-icon" />
+                <span>{p.text}</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="showcase-footer">
+        <span className="showcase-footer-tag">{slide.footerTag}</span>
+        <div className="showcase-footer-actions">
+          <button
+            type="button"
+            className="showcase-nav-btn"
+            onClick={() => setActiveSlide(prev => (prev - 1 + SHOWCASE_SLIDES.length) % SHOWCASE_SLIDES.length)}
+            title="Previous slide"
+          >
+            ←
+          </button>
+          <span className="showcase-index-counter">{slide.badge}</span>
+          <button
+            type="button"
+            className="showcase-nav-btn"
+            onClick={() => setActiveSlide(prev => (prev + 1) % SHOWCASE_SLIDES.length)}
+            title="Next slide"
+          >
+            →
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function Login({ onLogin, devices = [] }) {
   const [showLogin, setShowLogin] = useState(false);
   const [username, setUsername] = useState('');
@@ -196,39 +339,54 @@ function Login({ onLogin, devices = [] }) {
     return (
       <main className="login-shell">
         <HardwareTicker devices={devices} />
-        <button className="back-home" onClick={() => setShowLogin(false)}>← Back to home</button>
-        <div className="login-card entrance">
-          <div className="brand-mark"><Pill size={28} /></div>
-          <p className="eyebrow">MEDTRACK RFID</p>
-          <h1>Welcome<br />back.</h1>
-          <p className="muted">Sign in to your medicine operations workspace.</p>
-          <form onSubmit={submit} className="stack">
-            <label>
-              Username
-              <input
-                autoComplete="username"
-                value={username}
-                onChange={e => setUsername(e.target.value)}
-                required
-                placeholder="Enter username"
-              />
-            </label>
-            <label>
-              Password
-              <input
-                type="password"
-                autoComplete="current-password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                required
-                placeholder="Enter password"
-              />
-            </label>
-            {error && <div className="alert error">{error}</div>}
-            <button className="primary full" disabled={busy}>
-              {busy ? 'Signing in…' : 'Sign in to workspace'} <span>↗</span>
-            </button>
-          </form>
+        <div className="login-page-topbar">
+          <button className="back-home-btn" onClick={() => setShowLogin(false)}>
+            ← Back to home
+          </button>
+          <span className="login-topbar-brand">
+            <Pill size={16} /> MedTrack · PharmaChain Security
+          </span>
+        </div>
+        <div className="login-split-layout">
+          <div className="login-form-col">
+            <div className="login-card entrance">
+              <div className="brand-mark"><Pill size={28} /></div>
+              <p className="eyebrow">MEDTRACK RFID</p>
+              <h1>Welcome<br />back.</h1>
+              <p className="muted">Sign in to your medicine operations workspace.</p>
+              <form onSubmit={submit} className="stack">
+                <label>
+                  Username
+                  <input
+                    autoComplete="username"
+                    value={username}
+                    onChange={e => setUsername(e.target.value)}
+                    required
+                    placeholder="Enter username"
+                  />
+                </label>
+                <label>
+                  Password
+                  <input
+                    type="password"
+                    autoComplete="current-password"
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                    required
+                    placeholder="Enter password"
+                  />
+                </label>
+                {error && <div className="alert error">{error}</div>}
+                <button className="primary full" disabled={busy}>
+                  {busy ? 'Signing in…' : 'Sign in to workspace'} <span>↗</span>
+                </button>
+              </form>
+            </div>
+          </div>
+
+          <div className="login-showcase-col entrance delay-one">
+            <LoginShowcase />
+          </div>
         </div>
       </main>
     );
