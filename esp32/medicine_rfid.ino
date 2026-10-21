@@ -97,7 +97,8 @@ const char* FIRMWARE_VER   = "1.5.0";
 unsigned long lastHeartbeat = 0;
 unsigned long lastScanSent  = 0;
 String lastUid              = "";
-const unsigned long HEARTBEAT_INTERVAL_MS = 25000; // Send heartbeat & IP every 25s
+String lastReportedIp       = "";
+const unsigned long HEARTBEAT_INTERVAL_MS = 10000; // Continuous live IP sync every 10s
 const unsigned long DUPLICATE_GUARD_MS    = 2500;  // Prevent re-scanning same tag within 2.5s
 
 // Generate standard UUIDv4
@@ -298,8 +299,9 @@ void sendHeartbeat() {
   doc["device_id"]        = DEVICE_ID;
   doc["local_ip"]         = WiFi.localIP().toString();
   doc["firmware_version"] = FIRMWARE_VER;
+  lastReportedIp = WiFi.localIP().toString();
 
-  Serial.printf("[HEARTBEAT] Publishing live ESP32 IP: %s\n", WiFi.localIP().toString().c_str());
+  Serial.printf("[HEARTBEAT] Publishing live ESP32 IP: %s\n", lastReportedIp.c_str());
 
   int httpCode = 0;
   String response = "";
@@ -497,6 +499,15 @@ void loop() {
       lastHeartbeat = millis();
     } else {
       digitalWrite(BLUE_LED_PIN, HIGH);
+    }
+
+    // IP Watchdog: If Wi-Fi DHCP gave a new IP, update website immediately
+    String currentIpStr = WiFi.localIP().toString();
+    if (currentIpStr != lastReportedIp && currentIpStr != "0.0.0.0") {
+      Serial.printf("[IP WATCHDOG] Wi-Fi IP changed: %s -> %s\n", lastReportedIp.c_str(), currentIpStr.c_str());
+      lastReportedIp = currentIpStr;
+      lastHeartbeat = millis();
+      sendHeartbeat();
     }
 
     if (millis() - lastHeartbeat >= HEARTBEAT_INTERVAL_MS) {

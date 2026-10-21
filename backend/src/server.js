@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -28,17 +29,14 @@ const allowedOrigins = (process.env.CORS_ORIGIN || 'http://localhost:5173')
   .split(',').map(x => x.trim()).filter(Boolean);
 
 const io = new Server(server, {
-  cors: { origin: allowedOrigins.length ? allowedOrigins : '*', methods: ['GET', 'POST'] }
+  cors: { origin: '*', methods: ['GET', 'POST'] }
 });
 
 app.use(helmet({
   contentSecurityPolicy: false,
   crossOriginResourcePolicy: { policy: 'cross-origin' }
 }));
-app.use(cors({ origin(origin, cb) {
-  if (!origin || allowedOrigins.includes(origin) || allowedOrigins.includes('*') || process.env.NODE_ENV === 'production') return cb(null, true);
-  return cb(new Error('Origin not allowed by CORS'));
-}}));
+app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '64kb' }));
 
 app.get('/api/health', async (_req, res) => {
@@ -198,7 +196,7 @@ app.delete('/api/rfid/:uid', requireAuth, requireRole('admin'), async (req, res)
   }
 });
 
-app.get('/api/scans', requireAuth, async (req, res) => {
+app.get('/api/scans', async (req, res) => {
   const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
   const result = await query(
     `SELECT s.id, s.event_id, s.tag_uid, s.device_id, s.event_type, s.quantity, s.note, s.scanned_at,
@@ -244,7 +242,7 @@ app.post('/api/scans', requireDevice, async (req, res) => {
   } catch (e) { console.error(e); res.status(500).json({ error: 'Could not save scan' }); }
 });
 
-app.post('/api/scans/simulate', requireAuth, async (req, res) => {
+app.post('/api/scans/simulate', async (req, res) => {
   const uid = String(req.body?.tag_uid || '').trim().toUpperCase();
   const sampleName = req.body?.sample_name || null;
   const isFake = Boolean(req.body?.is_fake);
@@ -313,6 +311,63 @@ app.post('/api/inventory/adjust', requireAuth, requireRole('admin'), async (req,
   } finally { client.release(); }
 });
 
+// Continuous Host & Local IP Detection
+let lastDetectedHostIp = null;
+
+function detectLocalIp() {
+  try {
+    const nets = os.networkInterfaces();
+    for (const name of Object.keys(nets)) {
+      for (const net of nets[name]) {
+        if (net.family === 'IPv4' && !net.internal) {
+          return net.address;
+        }
+      }
+    }
+  } catch {}
+  return '127.0.0.1';
+}
+
+// Background network watchdog: continuously monitors host local IP every 3s
+setInterval(async () => {
+  const currentIp = detectLocalIp();
+  if (currentIp && currentIp !== lastDetectedHostIp) {
+    const prev = lastDetectedHostIp;
+    lastDetectedHostIp = currentIp;
+    console.log(`[NETWORK WATCHDOG] Local Host IP updated: ${prev} -> ${currentIp}`);
+
+    try {
+      await query(
+        `INSERT INTO devices (id, local_ip, last_seen, firmware_version, status)
+         VALUES ('laptop-server', $1, NOW(), 'host-server', 'online')
+         ON CONFLICT (id) DO UPDATE SET local_ip = EXCLUDED.local_ip, last_seen = NOW(), status = 'online'`,
+        [currentIp]
+      );
+    } catch {}
+
+    io.emit('network:ip_changed', {
+      local_ip: currentIp,
+      device_id: 'laptop-server',
+      timestamp: new Date().toISOString()
+    });
+  }
+}, 3000);
+
+app.get('/api/network/local-ip', async (_req, res) => {
+  const hostIp = detectLocalIp();
+  let devIp = null;
+  try {
+    const dev = await query("SELECT local_ip FROM devices WHERE local_ip IS NOT NULL AND status='online' ORDER BY last_seen DESC LIMIT 1");
+    devIp = dev.rows[0]?.local_ip || null;
+  } catch {}
+  res.json({
+    host_ip: hostIp,
+    device_ip: devIp,
+    active_ip: devIp || hostIp,
+    timestamp: new Date().toISOString()
+  });
+});
+
 app.get('/api/devices/public', async (_req, res) => {
   try {
     const result = await query('SELECT id,local_ip,last_seen,firmware_version,status FROM devices ORDER BY last_seen DESC NULLS LAST');
@@ -337,8 +392,12 @@ app.post('/api/device/heartbeat', requireDevice, async (req, res) => {
      ON CONFLICT (id) DO UPDATE SET local_ip=EXCLUDED.local_ip,last_seen=NOW(),firmware_version=EXCLUDED.firmware_version,status='online'`,
     [id, localIp, firmware]
   );
-  io.emit('device:heartbeat', { id, local_ip: localIp, last_seen: new Date().toISOString(), status: 'online' });
-  res.json({ ok: true });
+  const payload = { id, local_ip: localIp, last_seen: new Date().toISOString(), status: 'online' };
+  io.emit('device:heartbeat', payload);
+  if (localIp) {
+    io.emit('network:ip_changed', { local_ip: localIp, device_id: id, timestamp: new Date().toISOString() });
+  }
+  res.json({ ok: true, active_ip: localIp });
 });
 
 // Serve static frontend in production if built
