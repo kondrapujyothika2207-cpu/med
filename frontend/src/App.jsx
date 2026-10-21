@@ -239,6 +239,60 @@ function HardwareTicker({ devices = [], currentIp }) {
   );
 }
 
+const SHOWCASE_SLIDES = [
+  {
+    tag: 'MEDICINE TRUST PLATFORM',
+    title: (
+      <>
+        Confidence in every <span className="highlight-mint">medicine</span> you verify.
+      </>
+    ),
+    subtitle: 'One secure workspace for batch authentication, supply chain integrity and counterfeit detection.',
+    pills: [
+      { icon: ScanLine, text: 'Serial level checks' },
+      { icon: Boxes, text: 'Ledger backed' },
+      { icon: Activity, text: 'Quality signals' }
+    ],
+    footerTag: 'PHARMACHAIN · SECURE PORTAL',
+    badge: '01 / 03',
+    image: '/images/pharmachain_showcase_01.png'
+  },
+  {
+    tag: 'IOT HARDWARE NODE',
+    title: (
+      <>
+        Instant <span className="highlight-mint">RFID & NFC</span> verification at the edge.
+      </>
+    ),
+    subtitle: 'ESP32 Wi-Fi interrogation reads Mifare Classic & NTAG cryptotags in under 15ms with live telemetry.',
+    pills: [
+      { icon: Radio, text: 'ESP32 Auto-Connect' },
+      { icon: ShieldCheck, text: 'Tri-Color LED Logic' },
+      { icon: Activity, text: 'Multi-Tone Buzzer' }
+    ],
+    footerTag: 'PHARMACHAIN · HARDWARE TELEMETRY',
+    badge: '02 / 03',
+    image: null
+  },
+  {
+    tag: 'FRAUD DEFENSE MATRIX',
+    title: (
+      <>
+        Zero tolerance for <span className="highlight-mint">counterfeit drugs</span>.
+      </>
+    ),
+    subtitle: 'Machine learning purity analysis coupled with immutable SHA-256 blocks halts fake batches before dispensing.',
+    pills: [
+      { icon: ShieldCheck, text: 'SHA-256 Ledger Proof' },
+      { icon: Pill, text: '100% Model Precision' },
+      { icon: Boxes, text: 'Excel Audit Telemetry' }
+    ],
+    footerTag: 'PHARMACHAIN · CRYPTOGRAPHIC AUDIT',
+    badge: '03 / 03',
+    image: null
+  }
+];
+
 function LoginShowcase() {
   const [activeSlide, setActiveSlide] = useState(0);
 
