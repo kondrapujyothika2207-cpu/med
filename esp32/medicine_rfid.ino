@@ -12,7 +12,7 @@
  *    - GREEN LED (GPIO 12): Solid ON for 2s when REAL / GENUINE medicine is scanned
  *    - RED LED (GPIO 14): Rapid warning flashes when FAKE / COUNTERFEIT medicine is scanned
  * 3. Buzzer Audio Feedback Modes:
- *    - Mode 1: Wi-Fi connected chime (2 melodic ascending beeps)
+ *    - Mode 1: Wi-Fi connected chime
  *    - Mode 2: Authentic medicine confirmation beep (crisp 3000Hz tone)
  *    - Mode 3: Counterfeit fraud siren alarm (3 urgent warning bursts)
  * 4. Dual Reader Support: Supports both RC522 (SPI) and PN532 (I2C)
@@ -92,7 +92,7 @@ String currentApiBaseUrl          = API_BASE_URL_PRIMARY;
 
 const char* DEVICE_API_KEY = "esp32-device-secure-key-9988776655";
 const char* DEVICE_ID      = "esp32-medicine-reader-01";
-const char* FIRMWARE_VER   = "1.4.2";
+const char* FIRMWARE_VER   = "1.4.3";
 
 unsigned long lastHeartbeat = 0;
 unsigned long lastScanSent  = 0;
@@ -130,12 +130,23 @@ String formatUid(byte* buffer, byte bufferSize) {
 }
 
 // ----------------------------------------------------
-// BUZZER MODES
+// BUZZER MODES (Bit-banged square wave for ESP32 stability)
 // ----------------------------------------------------
 void playBuzzerTone(unsigned int frequency, unsigned long durationMs) {
-  tone(BUZZER_PIN, frequency, durationMs);
-  delay(durationMs);
-  noTone(BUZZER_PIN);
+  if (frequency == 0 || durationMs == 0) {
+    digitalWrite(BUZZER_PIN, LOW);
+    return;
+  }
+
+  const unsigned long halfPeriodUs = 500000UL / frequency;
+  const unsigned long endAt = millis() + durationMs;
+  while ((long)(millis() - endAt) < 0) {
+    digitalWrite(BUZZER_PIN, HIGH);
+    delayMicroseconds(halfPeriodUs);
+    digitalWrite(BUZZER_PIN, LOW);
+    delayMicroseconds(halfPeriodUs);
+  }
+  digitalWrite(BUZZER_PIN, LOW);
 }
 
 // Mode 1: Wi-Fi Connected Chime
@@ -188,10 +199,8 @@ void indicateFakeMedicine() {
   // Flash red LED and sound siren
   for (int i = 0; i < 4; i++) {
     digitalWrite(RED_LED_PIN, HIGH);
-    tone(BUZZER_PIN, 1100, 120);
-    delay(120);
+    playBuzzerTone(1100, 120);
     digitalWrite(RED_LED_PIN, LOW);
-    noTone(BUZZER_PIN);
     delay(80);
   }
   digitalWrite(RED_LED_PIN, LOW); // Turn off Red LED
@@ -207,24 +216,34 @@ void indicateFakeMedicine() {
 // ----------------------------------------------------
 bool executeHttpJsonPost(const String& baseUrl, const String& path, JsonDocument& doc, int& outCode, String& outResponse) {
   HTTPClient http;
+  WiFiClient plainClient;
+  WiFiClientSecure secureClient;
   String url = baseUrl + path;
 
   if (url.startsWith("https://")) {
-    WiFiClientSecure client;
-    client.setInsecure(); // Automatically trust Render SSL certificate
-    http.begin(client, url);
+    secureClient.setInsecure(); // Automatically trust Render SSL certificate
+    if (!http.begin(secureClient, url)) {
+      outCode = -1;
+      outResponse = "Unable to initialize HTTPS connection";
+      Serial.printf("[HTTP] %s\n", outResponse.c_str());
+      return false;
+    }
   } else {
-    WiFiClient client;
-    http.begin(client, url);
+    if (!http.begin(plainClient, url)) {
+      outCode = -1;
+      outResponse = "Unable to initialize HTTP connection";
+      Serial.printf("[HTTP] %s\n", outResponse.c_str());
+      return false;
+    }
   }
 
+  http.setConnectTimeout(8000);
   http.setTimeout(10000);
   http.addHeader("Content-Type", "application/json");
   http.addHeader("X-Device-Key", DEVICE_API_KEY);
 
   String requestBody;
   serializeJson(doc, requestBody);
-
   outCode = http.POST(requestBody);
   outResponse = (outCode > 0) ? http.getString() : HTTPClient::errorToString(outCode);
   http.end();
@@ -341,24 +360,8 @@ void processTagScan(const String& uid) {
 }
 
 // ----------------------------------------------------
-// BOOT REASON & WI-FI DIAGNOSTICS
+// WI-FI DIAGNOSTICS & AUTO-CONNECT
 // ----------------------------------------------------
-const char* getResetReasonText(esp_reset_reason_t reason) {
-  switch (reason) {
-    case ESP_RST_POWERON:   return "Power-on (Normal boot)";
-    case ESP_RST_EXT:       return "External reset pin";
-    case ESP_RST_SW:        return "Software reset";
-    case ESP_RST_PANIC:     return "Software panic / exception";
-    case ESP_RST_INT_WDT:   return "Interrupt watchdog reset";
-    case ESP_RST_TASK_WDT:  return "Task watchdog reset";
-    case ESP_RST_WDT:       return "Other watchdog reset";
-    case ESP_RST_DEEPSLEEP: return "Deep sleep wake";
-    case ESP_RST_BROWNOUT:  return "BROWNOUT RESET (Voltage sag / weak power supply)";
-    case ESP_RST_SDIO:      return "SDIO reset";
-    default:                return "Other / Unknown";
-  }
-}
-
 const char* getWifiStatusText(wl_status_t status) {
   switch (status) {
     case WL_IDLE_STATUS:     return "Idle";
@@ -372,27 +375,27 @@ const char* getWifiStatusText(wl_status_t status) {
   }
 }
 
-void startWifi() {
-  Serial.printf("\n[Wi-Fi] Connecting to SSID: '%s'...\n", WIFI_SSID);
-  Serial.flush();
-
+void connectWifi() {
   WiFi.persistent(false);
   WiFi.mode(WIFI_STA);
+  WiFi.setSleep(false);
   WiFi.setAutoReconnect(true);
+  WiFi.setTxPower(WIFI_POWER_15dBm);
+
+  Serial.printf("\nConnecting to Wi-Fi SSID: '%s'...\n", WIFI_SSID);
+  Serial.flush();
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
-  // Quick initial check (4 seconds max) - do not toggle LEDs to avoid current draw
-  unsigned long start = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - start < 4000) {
-    delay(300);
-    yield();
+  const unsigned long start = millis();
+  while (WiFi.status() != WL_CONNECTED && millis() - start < 5000UL) {
+    delay(250);
     Serial.print(".");
-    Serial.flush();
+    digitalWrite(BLUE_LED_PIN, !digitalRead(BLUE_LED_PIN));
   }
   Serial.println();
 
   if (WiFi.status() == WL_CONNECTED) {
-    digitalWrite(BLUE_LED_PIN, HIGH); // Blue LED Solid ON
+    digitalWrite(BLUE_LED_PIN, HIGH);
     Serial.println("=================================================");
     Serial.println("✓ WI-FI CONNECTED!");
     Serial.print("  ESP32 Local IP: ");
@@ -400,28 +403,14 @@ void startWifi() {
     Serial.print("  Target Backend: ");
     Serial.println(currentApiBaseUrl);
     Serial.println("=================================================");
+    lastHeartbeat = millis();
     buzzerWifiConnected();
     sendHeartbeat();
   } else {
     digitalWrite(BLUE_LED_PIN, LOW);
-    Serial.printf("ℹ [Wi-Fi] Status: %s (will auto-connect in background).\n", getWifiStatusText(WiFi.status()));
-
-    // If SSID not found, run quick 2.4GHz network scan to assist user
-    if (WiFi.status() == WL_NO_SSID_AVAIL || WiFi.status() == WL_DISCONNECTED) {
-      Serial.println("\n--- Scanning for visible 2.4GHz Wi-Fi networks ---");
-      int n = WiFi.scanNetworks();
-      bool found = false;
-      for (int i = 0; i < n; i++) {
-        String s = WiFi.SSID(i);
-        if (s == WIFI_SSID) found = true;
-        Serial.printf("   [%d] %-25s | Signal: %d dBm\n", i + 1, s.c_str(), WiFi.RSSI(i));
-      }
-      if (!found) {
-        Serial.println("  ❌ Hotspot 'Nothing Phone (3a)_2505' NOT visible in 2.4GHz scan!");
-        Serial.println("     --> On your Nothing Phone: Enable 'Extend compatibility' or switch AP Band to 2.4 GHz.");
-      }
-      Serial.println("--------------------------------------------------\n");
-    }
+    Serial.printf("Wi-Fi not connected after 5 seconds. Status: %d (%s)\n",
+                  (int)WiFi.status(), getWifiStatusText(WiFi.status()));
+    Serial.println("Continuing startup; RFID will run and Wi-Fi will retry in background.");
   }
 }
 
@@ -431,7 +420,7 @@ void setup() {
 
   Serial.begin(115200);
 
-  // Initialize LED & Buzzer Pins (keep LOW to prevent startup power draw)
+  // Initialize LED & Buzzer Pins
   pinMode(BLUE_LED_PIN, OUTPUT);
   pinMode(GREEN_LED_PIN, OUTPUT);
   pinMode(RED_LED_PIN, OUTPUT);
@@ -442,17 +431,16 @@ void setup() {
   digitalWrite(RED_LED_PIN, LOW);
   digitalWrite(BUZZER_PIN, LOW);
 
-  delay(200);
+  delay(300);
   Serial.println("\n\n=================================================");
   Serial.println("  MedTrack RFID Smart Medicine Authentication    ");
-  Serial.println("  ESP32 Firmware v1.4.2 - Hardware Ready         ");
+  Serial.println("  ESP32 Firmware v1.4.3 - Hardware Ready         ");
   Serial.println("=================================================");
 
-  // Print startup reset reason
-  esp_reset_reason_t rstReason = esp_reset_reason();
-  Serial.printf(">>> Boot Cause: %d [%s]\n", (int)rstReason, getResetReasonText(rstReason));
+  // Connect to Wi-Fi, then continue to RFID initialization
+  connectWifi();
+  Serial.println("[STARTUP] Wi-Fi routine finished; initializing RFID reader next.");
 
-  // STEP 1: Initialize RFID Hardware FIRST so scanner is always operational
 #if USE_RC522
   SPI.begin();
   rfid.PCD_Init();
@@ -461,9 +449,13 @@ void setup() {
   Serial.println("  Pins: SS=5, SCK=18, MOSI=23, MISO=19, RST=22");
   rfid.PCD_DumpVersionToSerial();
 #else
+  Serial.println("[PN532] Starting I2C on SDA=21, SCL=22...");
   Wire.begin(21, 22);
+  Wire.setClock(100000);
   delay(120);
+  Serial.println("[PN532] Calling nfc.begin()...");
   nfc.begin();
+  Serial.println("[PN532] Checking firmware version (may take a moment)...");
   uint32_t versiondata = nfc.getFirmwareVersion();
   if (!versiondata) {
     Serial.println("\n[ERROR] PN532 NFC module not responding on I2C (SDA=GPIO 21, SCL=GPIO 22)!");
@@ -481,30 +473,28 @@ void setup() {
   }
 #endif
 
-  Serial.println("✓ RFID Scanner is Active & Ready.");
-
-  // STEP 2: Connect to Wi-Fi (Non-blocking)
-  startWifi();
+  Serial.println("✓ Ready for RFID Medicine Tag Scans.");
 }
 
 void loop() {
-  // ----------------------------------------------------
-  // NON-BLOCKING BACKGROUND WI-FI & HEARTBEAT HANDLER
-  // ----------------------------------------------------
+  // Wi-Fi is retried in the background when disconnected
   static bool wasConnected = false;
   static unsigned long lastReconnectAttempt = 0;
 
-  if (WiFi.status() == WL_CONNECTED) {
+  const bool connected = (WiFi.status() == WL_CONNECTED);
+
+  if (connected) {
     if (!wasConnected) {
       wasConnected = true;
-      digitalWrite(BLUE_LED_PIN, HIGH); // Solid Blue ON when connected
+      digitalWrite(BLUE_LED_PIN, HIGH);
       Serial.println("\n=================================================");
-      Serial.println("✓ WI-FI CONNECTED (Background)!");
+      Serial.println("✓ WI-FI CONNECTED!");
       Serial.print("  ESP32 Local IP: ");
       Serial.println(WiFi.localIP());
       Serial.println("=================================================");
       buzzerWifiConnected();
       sendHeartbeat();
+      lastHeartbeat = millis();
     } else {
       digitalWrite(BLUE_LED_PIN, HIGH);
     }
@@ -516,16 +506,17 @@ void loop() {
   } else {
     if (wasConnected) {
       wasConnected = false;
-      digitalWrite(BLUE_LED_PIN, LOW); // Turn off Blue LED when disconnected
-      Serial.println("[Wi-Fi] Connection lost. Auto-reconnecting in background...");
+      digitalWrite(BLUE_LED_PIN, LOW);
+      Serial.println("[Wi-Fi] Connection lost. Will retry in background.");
     } else {
       digitalWrite(BLUE_LED_PIN, LOW);
     }
 
-    // Try background reconnect every 15s without interrupting RFID reading
-    if (millis() - lastReconnectAttempt > 15000) {
+    // Avoid repeated WiFi.begin() calls; reconnect every 15 seconds
+    if (millis() - lastReconnectAttempt >= 15000UL) {
       lastReconnectAttempt = millis();
-      Serial.println("[Wi-Fi Watchdog] Reconnecting in background...");
+      Serial.printf("[Wi-Fi] Reconnect attempt. Current status: %d (%s)\n",
+                    (int)WiFi.status(), getWifiStatusText(WiFi.status()));
       WiFi.reconnect();
     }
   }
