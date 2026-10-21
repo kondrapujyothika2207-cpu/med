@@ -1659,5 +1659,374 @@ html{scroll-behavior:smooth;scroll-padding-top:90px}.landing-page{overflow:hidde
   padding: 24px;
 }
 
+/* ====================================================
+   SCAN POPUP MODAL & ANIMATIONS (REAL VS DUPLICATE)
+   ==================================================== */
+.scan-popup-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.72);
+  backdrop-filter: blur(8px);
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  animation: fadeInModal 0.25s ease-out forwards;
+}
+
+@keyframes fadeInModal {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.scan-popup-card {
+  background: #ffffff;
+  border-radius: 24px;
+  max-width: 620px;
+  width: 100%;
+  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+  position: relative;
+  animation: scaleUpModal 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes scaleUpModal {
+  from { transform: scale(0.88) translateY(20px); opacity: 0; }
+  to { transform: scale(1) translateY(0); opacity: 1; }
+}
+
+.scan-popup-close-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid rgba(0,0,0,0.1);
+  background: #ffffff;
+  color: #64748b;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  z-index: 20;
+  transition: all 0.2s;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+.scan-popup-close-btn:hover {
+  background: #0f172a;
+  color: #ffffff;
+}
+
+.scan-popup-head {
+  padding: 22px 28px 18px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.scan-popup-head.verified-head {
+  background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%);
+  border-bottom-color: #a7f3d0;
+}
+
+.scan-popup-head.fake-head {
+  background: linear-gradient(135deg, #fef2f2 0%, #fff1f2 100%);
+  border-bottom-color: #fecaca;
+}
+
+.scan-popup-head-left {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.scan-popup-head-left h2 {
+  font: 800 22px Manrope, sans-serif;
+  letter-spacing: -0.6px;
+  margin: 0;
+  line-height: 1.1;
+}
+
+.scan-popup-head-left p {
+  font-size: 11px;
+  font-weight: 600;
+  margin: 3px 0 0;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+.scan-popup-body {
+  padding: 24px 28px;
+}
+
+.scan-popup-image-container {
+  position: relative;
+  width: 100%;
+  height: 250px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: #f8fafc;
+  border: 2px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 20px;
+}
+
+.scan-popup-image-container.verified-border {
+  border-color: #10b981;
+  box-shadow: 0 0 35px rgba(16, 185, 129, 0.25);
+}
+
+.scan-popup-image-container.fake-border {
+  border-color: #ef4444;
+  box-shadow: 0 0 35px rgba(239, 68, 68, 0.25);
+}
+
+.scan-popup-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* DUPLICATE / COUNTERFEIT RED RUBBER STAMP */
+.duplicate-stamp-badge {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-13deg);
+  border: 4px dashed #dc2626;
+  border-radius: 10px;
+  padding: 10px 22px;
+  background: rgba(254, 226, 226, 0.94);
+  color: #b91c1c;
+  font: 900 26px 'Impact', 'Arial Black', sans-serif;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.4), 0 12px 30px rgba(220, 38, 38, 0.45);
+  animation: stamp-slam 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+  pointer-events: none;
+  z-index: 10;
+  white-space: nowrap;
+}
+
+@keyframes stamp-slam {
+  0% {
+    transform: translate(-50%, -50%) rotate(-13deg) scale(2.4);
+    opacity: 0;
+  }
+  65% {
+    transform: translate(-50%, -50%) rotate(-13deg) scale(0.92);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) rotate(-13deg) scale(1);
+    opacity: 1;
+  }
+}
+
+/* VERIFIED STAMP BADGE */
+.verified-stamp-badge {
+  position: absolute;
+  bottom: 14px;
+  right: 14px;
+  background: rgba(16, 185, 129, 0.95);
+  color: #ffffff;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font: 800 13px Manrope, sans-serif;
+  letter-spacing: 0.5px;
+  box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  animation: stamp-pop 0.4s ease-out forwards;
+}
+
+@keyframes stamp-pop {
+  0% { transform: scale(0.5); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+/* ANIMATED SVG CHECKMARK (GREEN) */
+.animated-check-svg {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  display: block;
+  stroke-width: 3.5;
+  stroke: #10b981;
+  stroke-miterlimit: 10;
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.35);
+  background: #ecfdf5;
+}
+
+.check-circle {
+  stroke-dasharray: 166;
+  stroke-dashoffset: 166;
+  stroke-width: 3.5;
+  stroke-miterlimit: 10;
+  stroke: #10b981;
+  fill: none;
+  animation: stroke-anim 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+}
+
+.check-path {
+  transform-origin: 50% 50%;
+  stroke-dasharray: 48;
+  stroke-dashoffset: 48;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke: #10b981;
+  animation: stroke-anim 0.4s cubic-bezier(0.65, 0, 0.45, 1) 0.45s forwards;
+}
+
+/* ANIMATED SVG CROSS / INTO MARK (RED) */
+.animated-cross-svg {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  display: block;
+  stroke-width: 3.5;
+  stroke: #ef4444;
+  stroke-miterlimit: 10;
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.35);
+  background: #fef2f2;
+}
+
+.cross-circle {
+  stroke-dasharray: 166;
+  stroke-dashoffset: 166;
+  stroke-width: 3.5;
+  stroke-miterlimit: 10;
+  stroke: #ef4444;
+  fill: none;
+  animation: stroke-anim 0.6s cubic-bezier(0.65, 0, 0.45, 1) forwards;
+}
+
+.cross-line-1 {
+  stroke-dasharray: 36;
+  stroke-dashoffset: 36;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke: #ef4444;
+  animation: stroke-anim 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.35s forwards;
+}
+
+.cross-line-2 {
+  stroke-dasharray: 36;
+  stroke-dashoffset: 36;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke: #ef4444;
+  animation: stroke-anim 0.3s cubic-bezier(0.65, 0, 0.45, 1) 0.55s forwards;
+}
+
+@keyframes stroke-anim {
+  100% { stroke-dashoffset: 0; }
+}
+
+.scan-popup-info-row {
+  margin-bottom: 18px;
+}
+
+.scan-popup-medicine-name {
+  font: 800 26px Manrope, sans-serif;
+  letter-spacing: -0.8px;
+  margin: 0 0 6px;
+  color: #0f172a;
+}
+
+.scan-popup-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.scan-popup-meta-cell {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  padding: 10px 14px;
+  border-radius: 10px;
+}
+
+.scan-popup-meta-cell span {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.scan-popup-meta-cell strong {
+  display: block;
+  font-size: 13px;
+  color: #0f172a;
+}
+
+.scan-popup-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.scan-popup-actions .btn-done {
+  flex: 1;
+  padding: 12px 18px;
+  border-radius: 10px;
+  border: none;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  background: #0f272a;
+  color: #ffffff;
+  transition: all 0.2s;
+}
+
+.scan-popup-actions .btn-done:hover {
+  background: #134e4a;
+}
+
+/* Navy Bar Styling */
+.navbar-live-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  background: #0f272a;
+  color: #ffffff;
+  border: 1px solid #134e4a;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.navbar-live-pill:hover {
+  background: #134e4a;
+  border-color: #10b981;
+}
+
+.navbar-live-pill .live-beacon {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 10px #10b981;
+  animation: pulse-beacon 1.4s infinite;
+}
+
+@keyframes pulse-beacon {
+  0% { transform: scale(0.9); opacity: 0.8; }
+  50% { transform: scale(1.3); opacity: 1; }
+  100% { transform: scale(0.9); opacity: 0.8; }
+}
+
+
 
 

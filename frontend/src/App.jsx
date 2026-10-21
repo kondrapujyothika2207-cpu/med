@@ -3,7 +3,7 @@ import { io } from 'socket.io-client';
 import {
   Activity, Boxes, LogOut, Pill, Radio, ScanLine, ShieldCheck,
   Wifi, WifiOff, Search, Plus, ArrowDownToLine, ArrowUpFromLine, RefreshCw, AlertTriangle,
-  Volume2, VolumeX, CheckCircle2, XCircle
+  Volume2, VolumeX, CheckCircle2, XCircle, X
 } from 'lucide-react';
 
 const API = (import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? 'http://localhost:4000' : '')).replace(/\/$/, '');
@@ -430,6 +430,129 @@ function Login({ onLogin, devices = [], onClose }) {
   );
 }
 
+function ScanResultPopup({ scan, onClose }) {
+  if (!scan) return null;
+
+  const isGenuine = scan.event_type !== 'unknown_tag' &&
+    (!scan.note || !scan.note.toLowerCase().includes('counterfeit')) &&
+    !!scan.medicine_name;
+
+  const medicineName = scan.medicine_name || 'Counterfeit / Unregistered Tag';
+  const imgUrl = getMedicineImage(scan.medicine_name, isGenuine);
+
+  return (
+    <div className="scan-popup-backdrop" onClick={onClose}>
+      <div className="scan-popup-card" onClick={e => e.stopPropagation()}>
+        <button
+          type="button"
+          className="scan-popup-close-btn"
+          onClick={onClose}
+          aria-label="Close modal"
+        >
+          <X size={18} />
+        </button>
+
+        <div className={`scan-popup-head ${isGenuine ? 'verified-head' : 'fake-head'}`}>
+          <div className="scan-popup-head-left">
+            {isGenuine ? (
+              <svg className="animated-check-svg" viewBox="0 0 52 52">
+                <circle className="check-circle" cx="26" cy="26" r="23" />
+                <path className="check-path" d="M14 27l8 8 16-16" />
+              </svg>
+            ) : (
+              <svg className="animated-cross-svg" viewBox="0 0 52 52">
+                <circle className="cross-circle" cx="26" cy="26" r="23" />
+                <line className="cross-line-1" x1="16" y1="16" x2="36" y2="36" />
+                <line className="cross-line-2" x1="36" y1="16" x2="16" y2="36" />
+              </svg>
+            )}
+            <div>
+              <h2 style={{ color: isGenuine ? '#065f46' : '#991b1b' }}>
+                {isGenuine ? 'MEDICINE VERIFIED' : 'NOT VERIFIED'}
+              </h2>
+              <p style={{ color: isGenuine ? '#047857' : '#b91c1c' }}>
+                {isGenuine
+                  ? 'AUTHENTIC PHARMACEUTICAL RECORD'
+                  : 'CRITICAL ALERT: DUPLICATE / FAKE MEDICINE'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="scan-popup-body">
+          <div className={`scan-popup-image-container ${isGenuine ? 'verified-border' : 'fake-border'}`}>
+            <img
+              src={imgUrl}
+              alt={medicineName}
+              className="scan-popup-img"
+              onError={e => {
+                e.target.src = isGenuine ? '/medicines/paracetamol_ai.jpg' : '/medicines/fake_medicine_warning.jpg';
+              }}
+            />
+            {isGenuine ? (
+              <div className="verified-stamp-badge">
+                <CheckCircle2 size={15} />
+                <span>VERIFIED AUTHENTIC</span>
+              </div>
+            ) : (
+              <div className="duplicate-stamp-badge">
+                DUPLICATE / FAKE
+              </div>
+            )}
+          </div>
+
+          <div className="scan-popup-info-row">
+            <h3 className="scan-popup-medicine-name">{medicineName}</h3>
+            <p style={{ margin: 0, fontSize: '13px', color: isGenuine ? '#047857' : '#b91c1c', fontWeight: 600 }}>
+              {isGenuine
+                ? (scan.strength
+                    ? `Clinical Formulation: ${scan.strength} — Serialized RFID signature confirmed.`
+                    : 'Authentic formulation. NFC cryptographic signature matches national registry.')
+                : 'SECURITY WARNING: Photocopied clone, duplicate tag, or spurious chemical composition detected!'}
+            </p>
+          </div>
+
+          <div className="scan-popup-meta-grid">
+            <div className="scan-popup-meta-cell">
+              <span>RFID Card UID</span>
+              <strong><code>{scan.tag_uid || 'N/A'}</code></strong>
+            </div>
+            <div className="scan-popup-meta-cell">
+              <span>Reader Node</span>
+              <strong>{scan.device_id || 'esp32-medicine-reader-01'}</strong>
+            </div>
+            <div className="scan-popup-meta-cell">
+              <span>Verification Status</span>
+              <strong style={{ color: isGenuine ? '#10b981' : '#ef4444' }}>
+                {isGenuine ? '✓ Authentic (Passed)' : '✗ FAKE / DUPLICATE (Rejected)'}
+              </strong>
+            </div>
+            <div className="scan-popup-meta-cell">
+              <span>Scanned At</span>
+              <strong>{date(scan.scanned_at)}</strong>
+            </div>
+          </div>
+
+          <div className="scan-popup-actions">
+            <button
+              type="button"
+              className="btn-done"
+              onClick={onClose}
+              style={{
+                background: isGenuine
+                  ? 'linear-gradient(135deg, #059669 0%, #047857 100%)'
+                  : 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)'
+              }}
+            >
+              {isGenuine ? 'Continue Dispensing' : 'Acknowledge Fraud Warning'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LiveTerminalTab({
   activeLiveScan,
   scans = [],
@@ -500,9 +623,16 @@ function LiveTerminalTab({
                     e.target.src = isGenuine ? '/medicines/paracetamol_ai.jpg' : '/medicines/fake_medicine_warning.jpg';
                   }}
                 />
-                <span className={`live-image-stamp ${isGenuine ? 'stamp-verified' : 'stamp-counterfeit'}`}>
-                  {isGenuine ? '✓ AUTHENTIC' : '⚠️ SUSPECT / FAKE'}
-                </span>
+                {isGenuine ? (
+                  <div className="verified-stamp-badge">
+                    <CheckCircle2 size={15} />
+                    <span>✓ AUTHENTIC</span>
+                  </div>
+                ) : (
+                  <div className="duplicate-stamp-badge">
+                    DUPLICATE / FAKE
+                  </div>
+                )}
               </div>
             </div>
 
@@ -511,7 +641,18 @@ function LiveTerminalTab({
               {/* Prominent VERIFIED / NOT VERIFIED Hero Banner */}
               <div className={`live-status-hero-banner ${isGenuine ? 'verified' : 'unverified'}`}>
                 <div className="live-status-icon-wrap">
-                  {isGenuine ? <CheckCircle2 size={36} /> : <AlertTriangle size={36} />}
+                  {isGenuine ? (
+                    <svg className="animated-check-svg" viewBox="0 0 52 52">
+                      <circle className="check-circle" cx="26" cy="26" r="23" />
+                      <path className="check-path" d="M14 27l8 8 16-16" />
+                    </svg>
+                  ) : (
+                    <svg className="animated-cross-svg" viewBox="0 0 52 52">
+                      <circle className="cross-circle" cx="26" cy="26" r="23" />
+                      <line className="cross-line-1" x1="16" y1="16" x2="36" y2="36" />
+                      <line className="cross-line-2" x1="36" y1="16" x2="16" y2="36" />
+                    </svg>
+                  )}
                 </div>
                 <div className="live-status-banner-text">
                   <h3>{isGenuine ? 'VERIFIED' : 'NOT VERIFIED'}</h3>
@@ -823,6 +964,7 @@ export default function App() {
   const [session, setSession] = useState(null);
   const [tab, setTab] = useState('live');
   const [activeLiveScan, setActiveLiveScan] = useState(null);
+  const [scanPopup, setScanPopup] = useState(null);
   const [liveFlash, setLiveFlash] = useState(false);
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [showLogin, setShowLogin] = useState(false);
@@ -949,6 +1091,7 @@ export default function App() {
     socket.on('scan:new', event => {
       setScans(prev => [event, ...prev.filter(s => s.event_id !== event.event_id)].slice(0, 80));
       setActiveLiveScan(event);
+      setScanPopup(event);
       setLiveFlash(true);
       setTimeout(() => setLiveFlash(false), 1200);
 
@@ -1109,6 +1252,7 @@ export default function App() {
             </div>
           )}
         </main>
+        {scanPopup && <ScanResultPopup scan={scanPopup} onClose={() => setScanPopup(null)} />}
       </div>
     );
   }
@@ -1129,6 +1273,7 @@ export default function App() {
       });
       if (data?.scan) {
         setActiveLiveScan(data.scan);
+        setScanPopup(data.scan);
         setLiveFlash(true);
         setTimeout(() => setLiveFlash(false), 1200);
         if (audioEnabled) playLiveAudio(!is_fake);
@@ -1253,7 +1398,7 @@ export default function App() {
       </aside>
 
       <main className="main">
-        <HardwareTicker devices={devices} />
+        <HardwareTicker devices={devices} currentIp={currentLocalIp} />
         <header className="topbar">
           <div>
             <div className="eyebrow">MEDICINE OPERATIONS</div>
@@ -1271,6 +1416,15 @@ export default function App() {
             </h1>
           </div>
           <div className="top-actions">
+            <button
+              type="button"
+              className="navbar-live-pill"
+              onClick={() => setTab('live')}
+              title="Open Real-time Live Scan Terminal"
+            >
+              <span className="live-beacon" />
+              <span>Live Terminal</span>
+            </button>
             <span className="live-pill"><span className="live-dot" /> Live updates</span>
             <button className="icon-button" onClick={load} title="Refresh"><RefreshCw size={17} /></button>
             <div className="role-chip">{isAdmin ? 'Administrator' : 'User Portal'}</div>
@@ -1629,6 +1783,7 @@ export default function App() {
         )}
 
         <footer>MedTrack RFID · Advanced Pharmaceutical Serialization & Inventory Authentication <span>·</span> Compliant with WHO & US FDA DSCSA Standards.</footer>
+        {scanPopup && <ScanResultPopup scan={scanPopup} onClose={() => setScanPopup(null)} />}
       </main>
     </div>
   );
