@@ -207,8 +207,59 @@ app.get('/api/scans', async (req, res) => {
   res.json(result.rows);
 });
 
+// 10-Second Dispense Window State
+let pendingDispense = null;
+
+app.post('/api/dispense/confirm', async (req, res) => {
+  const medicineId = req.body?.medicine_id || pendingDispense?.medicineId;
+  if (!medicineId) return res.status(400).json({ error: 'No active medicine to dispense' });
+  try {
+    const client = await pool.connect();
+    let remaining = 0;
+    let medName = 'Medicine';
+    try {
+      await client.query('BEGIN');
+      const medRes = await client.query('SELECT name, strength FROM medicines WHERE id=$1', [medicineId]);
+      if (medRes.rows[0]) medName = medRes.rows[0].name;
+      const inv = await client.query('SELECT quantity FROM inventory WHERE medicine_id=$1 FOR UPDATE', [medicineId]);
+      if (inv.rows[0]) {
+        remaining = Math.max(0, Number(inv.rows[0].quantity) - 1);
+        await client.query('UPDATE inventory SET quantity=$1, updated_at=NOW() WHERE medicine_id=$2', [remaining, medicineId]);
+      }
+      const eventId = randomUUID();
+      await client.query(
+        `INSERT INTO scan_events (event_id,tag_uid,medicine_id,device_id,event_type,quantity,note)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [eventId, '7D:F0:AE:26', medicineId, 'web-client', 'stock_out', 1, 'RFID Keycard 7D:F0:AE:26 confirmed dispense (-1)']
+      );
+      await client.query('COMMIT');
+      pendingDispense = null;
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+
+    io.emit('dispense:success', {
+      medicine_id: medicineId,
+      medicine_name: medName,
+      quantity: 1,
+      remaining_quantity: remaining,
+      tag_uid: '7D:F0:AE:26'
+    });
+    io.emit('inventory:updated', { medicine_id: medicineId, quantity: remaining, action: 'stock_out' });
+    res.json({ ok: true, medicine_id: medicineId, medicine_name: medName, remaining_quantity: remaining });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Dispense failed' });
+  }
+});
+
 app.post('/api/scans', requireDevice, async (req, res) => {
   const uid = String(req.body?.tag_uid || '').trim().toUpperCase();
+  const cleanUid = uid.replace(/[^A-F0-9]/gi, '');
+  const isMasterDispenseCard = (uid === '7D:F0:AE:26' || cleanUid === '7DF0AE26');
   const deviceId = String(req.body?.device_id || 'esp32-01').trim().slice(0, 100);
   const eventId = String(req.body?.event_id || '');
   if (!uid || !/^[a-f0-9-]{8,100}$/i.test(eventId)) {
@@ -217,6 +268,98 @@ app.post('/api/scans', requireDevice, async (req, res) => {
   try {
     const existing = await query('SELECT id FROM scan_events WHERE event_id=$1', [eventId]);
     if (existing.rows[0]) return res.json({ ok: true, duplicate: true });
+
+    // Handle 7D:F0:AE:26 as the Master Stock-Removing Card
+    if (isMasterDispenseCard) {
+      const now = Date.now();
+      if (pendingDispense && (now - pendingDispense.timestamp <= 10000)) {
+        // Card placed within 10 seconds of medicine scan! Execute stock reduction (-1)
+        const targetMedId = pendingDispense.medicineId;
+        const targetMedName = pendingDispense.medicineName;
+        const targetStrength = pendingDispense.strength;
+        pendingDispense = null;
+
+        const client = await pool.connect();
+        let remaining = 0;
+        try {
+          await client.query('BEGIN');
+          const inv = await client.query('SELECT quantity FROM inventory WHERE medicine_id=$1 FOR UPDATE', [targetMedId]);
+          if (inv.rows[0]) {
+            remaining = Math.max(0, Number(inv.rows[0].quantity) - 1);
+            await client.query('UPDATE inventory SET quantity=$1, updated_at=NOW() WHERE medicine_id=$2', [remaining, targetMedId]);
+          }
+          await client.query(
+            `INSERT INTO scan_events (event_id,tag_uid,medicine_id,device_id,event_type,quantity,note)
+             VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+            [eventId, uid, targetMedId, deviceId, 'stock_out', 1, `Master Keycard 7D:F0:AE:26 dispense (-1) within 10s`]
+          );
+          await client.query('COMMIT');
+        } catch (err) {
+          await client.query('ROLLBACK');
+          throw err;
+        } finally {
+          client.release();
+        }
+
+        const payload = {
+          event_id: eventId,
+          tag_uid: uid,
+          medicine_id: targetMedId,
+          medicine_name: targetMedName,
+          strength: targetStrength,
+          device_id: deviceId,
+          event_type: 'stock_out',
+          quantity: 1,
+          remaining_quantity: remaining,
+          scanned_at: new Date().toISOString(),
+          action: 'stock_out',
+          note: `Dispensed 1 unit of ${targetMedName}. Remaining stock: ${remaining}`
+        };
+
+        io.emit('scan:new', payload);
+        io.emit('dispense:success', {
+          medicine_id: targetMedId,
+          medicine_name: targetMedName,
+          quantity: 1,
+          remaining_quantity: remaining,
+          tag_uid: uid
+        });
+        io.emit('inventory:updated', { medicine_id: targetMedId, quantity: remaining, action: 'stock_out' });
+
+        return res.status(200).json({
+          ok: true,
+          is_genuine: true,
+          action: 'stock_out',
+          medicine_name: targetMedName,
+          remaining_quantity: remaining,
+          message: `Stock reduced by 1 for ${targetMedName}. Remaining: ${remaining}`,
+          scan: payload
+        });
+      } else {
+        // Dispenser card tapped with no prior medicine within 10s
+        const payload = {
+          event_id: eventId,
+          tag_uid: uid,
+          medicine_id: null,
+          medicine_name: 'Master Dispense Keycard (7D:F0:AE:26)',
+          device_id: deviceId,
+          event_type: 'identify',
+          scanned_at: new Date().toISOString(),
+          action: 'dispenser_ready',
+          note: 'Master Dispenser Card ready. Scan a medicine first, then tap this card within 10s to deduct stock.'
+        };
+        io.emit('scan:new', payload);
+        return res.status(200).json({
+          ok: true,
+          is_genuine: true,
+          action: 'dispenser_ready',
+          medicine_name: 'Master Dispense Keycard (7D:F0:AE:26)',
+          message: 'Dispenser card ready. Tap medicine card first, then tap this within 10s to deduct stock.',
+          scan: payload
+        });
+      }
+    }
+
     const match = await query('SELECT medicine_id FROM rfid_tags WHERE uid=$1 AND active=TRUE', [uid]);
     const medicineId = match.rows[0]?.medicine_id || null;
     const eventType = medicineId ? 'identify' : 'unknown_tag';
@@ -225,11 +368,27 @@ app.post('/api/scans', requireDevice, async (req, res) => {
        VALUES ($1,$2,$3,$4,$5) RETURNING id,event_id,tag_uid,medicine_id,device_id,event_type,scanned_at`,
       [eventId, uid, medicineId, deviceId, eventType]
     );
-    const payload = { ...inserted.rows[0], medicine_name: null };
+    const payload = { ...inserted.rows[0], medicine_name: null, current_stock: null };
     if (medicineId) {
       const m = await query('SELECT name,strength FROM medicines WHERE id=$1', [medicineId]);
       payload.medicine_name = m.rows[0]?.name || null;
       payload.strength = m.rows[0]?.strength || null;
+
+      const inv = await query('SELECT quantity FROM inventory WHERE medicine_id=$1', [medicineId]);
+      const currentStock = inv.rows[0] ? Number(inv.rows[0].quantity) : 0;
+      payload.current_stock = currentStock;
+
+      // Start 10-second dispense countdown window!
+      pendingDispense = {
+        medicineId,
+        medicineName: payload.medicine_name,
+        strength: payload.strength,
+        currentStock,
+        timestamp: Date.now(),
+        tagUid: uid
+      };
+      payload.dispense_window_active = true;
+      payload.seconds_left = 10;
     }
     io.emit('scan:new', payload);
     res.status(201).json({
@@ -237,6 +396,8 @@ app.post('/api/scans', requireDevice, async (req, res) => {
       is_genuine: !!medicineId,
       status: medicineId ? 'genuine' : 'fake',
       medicine_name: payload.medicine_name,
+      current_stock: payload.current_stock,
+      dispense_window_active: !!medicineId,
       scan: payload
     });
   } catch (e) { console.error(e); res.status(500).json({ error: 'Could not save scan' }); }
@@ -244,12 +405,80 @@ app.post('/api/scans', requireDevice, async (req, res) => {
 
 app.post('/api/scans/simulate', async (req, res) => {
   const uid = String(req.body?.tag_uid || '').trim().toUpperCase();
+  const cleanUid = uid.replace(/[^A-F0-9]/gi, '');
+  const isMasterDispenseCard = (uid === '7D:F0:AE:26' || cleanUid === '7DF0AE26');
   const sampleName = req.body?.sample_name || null;
   const isFake = Boolean(req.body?.is_fake);
   const note = req.body?.note || (isFake ? 'Counterfeit / Fraudulent sample flagged' : 'Virtual test scan');
   const eventId = randomUUID();
 
   try {
+    if (isMasterDispenseCard) {
+      const now = Date.now();
+      if (pendingDispense && (now - pendingDispense.timestamp <= 10000)) {
+        const targetMedId = pendingDispense.medicineId;
+        const targetMedName = pendingDispense.medicineName;
+        const targetStrength = pendingDispense.strength;
+        pendingDispense = null;
+
+        const client = await pool.connect();
+        let remaining = 0;
+        try {
+          await client.query('BEGIN');
+          const inv = await client.query('SELECT quantity FROM inventory WHERE medicine_id=$1 FOR UPDATE', [targetMedId]);
+          if (inv.rows[0]) {
+            remaining = Math.max(0, Number(inv.rows[0].quantity) - 1);
+            await client.query('UPDATE inventory SET quantity=$1, updated_at=NOW() WHERE medicine_id=$2', [remaining, targetMedId]);
+          }
+          await client.query(
+            `INSERT INTO scan_events (event_id,tag_uid,medicine_id,device_id,event_type,quantity,note)
+             VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+            [eventId, uid, targetMedId, 'virtual-terminal', 'stock_out', 1, `Master Keycard 7D:F0:AE:26 simulated dispense (-1)`]
+          );
+          await client.query('COMMIT');
+        } catch (err) {
+          await client.query('ROLLBACK');
+          throw err;
+        } finally {
+          client.release();
+        }
+
+        const payload = {
+          event_id: eventId,
+          tag_uid: uid,
+          medicine_id: targetMedId,
+          medicine_name: targetMedName,
+          strength: targetStrength,
+          device_id: 'virtual-terminal',
+          event_type: 'stock_out',
+          quantity: 1,
+          remaining_quantity: remaining,
+          scanned_at: new Date().toISOString(),
+          action: 'stock_out',
+          note: `Dispensed 1 unit of ${targetMedName}. Remaining stock: ${remaining}`
+        };
+
+        io.emit('scan:new', payload);
+        io.emit('dispense:success', {
+          medicine_id: targetMedId,
+          medicine_name: targetMedName,
+          quantity: 1,
+          remaining_quantity: remaining,
+          tag_uid: uid
+        });
+        io.emit('inventory:updated', { medicine_id: targetMedId, quantity: remaining, action: 'stock_out' });
+
+        return res.status(201).json({
+          ok: true,
+          scan: payload,
+          is_genuine: true,
+          action: 'stock_out',
+          remaining_quantity: remaining,
+          alert: 'genuine'
+        });
+      }
+    }
+
     const match = await query('SELECT medicine_id FROM rfid_tags WHERE uid=$1 AND active=TRUE', [uid]);
     const medicineId = match.rows[0]?.medicine_id || null;
     const eventType = isFake ? 'unknown_tag' : (medicineId ? 'identify' : 'unknown_tag');
@@ -262,13 +491,34 @@ app.post('/api/scans/simulate', async (req, res) => {
 
     let medicineName = sampleName;
     let strength = null;
+    let currentStock = null;
     if (medicineId) {
       const m = await query('SELECT name,strength FROM medicines WHERE id=$1', [medicineId]);
       medicineName = m.rows[0]?.name || sampleName;
       strength = m.rows[0]?.strength || null;
+      const inv = await query('SELECT quantity FROM inventory WHERE medicine_id=$1', [medicineId]);
+      currentStock = inv.rows[0] ? Number(inv.rows[0].quantity) : 0;
+
+      if (!isFake) {
+        pendingDispense = {
+          medicineId,
+          medicineName,
+          strength,
+          currentStock,
+          timestamp: Date.now(),
+          tagUid: uid
+        };
+      }
     }
 
-    const payload = { ...inserted.rows[0], medicine_name: medicineName, strength };
+    const payload = {
+      ...inserted.rows[0],
+      medicine_name: medicineName,
+      strength,
+      current_stock: currentStock,
+      dispense_window_active: !isFake && !!medicineId,
+      seconds_left: (!isFake && !!medicineId) ? 10 : undefined
+    };
     io.emit('scan:new', payload);
     res.status(201).json({ ok: true, scan: payload, alert: isFake ? 'warning' : 'genuine' });
   } catch (e) {

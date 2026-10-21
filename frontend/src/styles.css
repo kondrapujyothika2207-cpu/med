@@ -2190,3 +2190,193 @@ html{scroll-behavior:smooth;scroll-padding-top:90px}.landing-page{overflow:hidde
   border-radius: 8px;
   cursor: pointer;
 }
+
+/* 10-Second Stock Dispense Popup Elements */
+.popup-dispense-card {
+  width: 100%;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  transition: all 0.3s ease;
+}
+
+.popup-dispense-card.active {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(220, 38, 38, 0.03) 100%);
+  border: 1.5px solid rgba(239, 68, 68, 0.35);
+  box-shadow: 0 4px 16px rgba(239, 68, 68, 0.1);
+}
+
+.popup-dispense-card.dispensed {
+  background: linear-gradient(135deg, rgba(13, 148, 136, 0.12) 0%, rgba(5, 150, 105, 0.06) 100%);
+  border: 1.5px solid rgba(13, 148, 136, 0.45);
+  box-shadow: 0 4px 16px rgba(13, 148, 136, 0.15);
+}
+
+.popup-dispense-card.expired {
+  background: #f8fafc;
+  border: 1px dashed #cbd5e1;
+}
+
+.dispense-active-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.dispense-timer-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #fee2e2;
+  border: 2px solid #ef4444;
+  border-radius: 20px;
+  padding: 5px 11px;
+  flex-shrink: 0;
+}
+
+.dispense-timer-badge .timer-val {
+  font-size: 15px;
+  font-weight: 800;
+  color: #b91c1c;
+  font-family: monospace;
+}
+
+.dispense-timer-details {
+  flex: 1;
+  min-width: 0;
+}
+
+.dispense-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+
+.dispense-title-row strong {
+  font-size: 13px;
+  color: #991b1b;
+  letter-spacing: 0.3px;
+}
+
+.stock-pill {
+  background: #ecfdf5;
+  color: #047857;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 6px;
+  border: 1px solid #a7f3d0;
+}
+
+.dispense-timer-details p {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: #475569;
+}
+
+.dispense-timer-details code {
+  background: #fee2e2;
+  color: #991b1b;
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-weight: 700;
+}
+
+.dispense-progress-bar {
+  width: 100%;
+  height: 5px;
+  background: #e2e8f0;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.dispense-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #ef4444 0%, #dc2626 100%);
+  border-radius: 10px;
+  transition: width 1s linear;
+}
+
+.btn-quick-dispense {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: #ffffff;
+  border: none;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  flex-shrink: 0;
+  box-shadow: 0 3px 10px rgba(239, 68, 68, 0.3);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.btn-quick-dispense:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 5px 14px rgba(239, 68, 68, 0.4);
+}
+
+.btn-quick-dispense:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.dispense-done-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #065f46;
+}
+
+.dispense-check-icon {
+  color: #059669;
+  flex-shrink: 0;
+}
+
+.dispense-done-box strong {
+  display: block;
+  font-size: 14px;
+  color: #047857;
+  letter-spacing: 0.3px;
+  margin-bottom: 2px;
+}
+
+.dispense-done-box p {
+  margin: 0;
+  font-size: 12px;
+  color: #065f46;
+}
+
+.dispense-expired-box {
+  font-size: 12px;
+  color: #64748b;
+  text-align: center;
+  padding: 4px;
+}
+
+.popup-dispenser-keycard-badge {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: linear-gradient(135deg, #ecfdf5 0%, #f0fdf4 100%);
+  border: 1.5px solid #6ee7b7;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 14px;
+  color: #065f46;
+}
+
+.popup-dispenser-keycard-badge strong {
+  display: block;
+  font-size: 13px;
+  color: #047857;
+  margin-bottom: 2px;
+}
+
+.popup-dispenser-keycard-badge p {
+  margin: 0;
+  font-size: 12px;
+  color: #065f46;
+}

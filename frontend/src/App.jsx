@@ -92,6 +92,10 @@ function uidHash(uid) {
 }
 
 function getMedicineImage(name, isGenuine = true, uid = '') {
+  const u = (uid || '').toUpperCase().trim();
+  const cleanU = u.replace(/[^A-F0-9]/g, '');
+  if (u === 'E1:FC:1A:B1' || cleanU === 'E1FC1AB1') return '/medicines/paracetamol_ai.jpg';
+  if (u === '7D:F0:AE:26' || cleanU === '7DF0AE26') return '/medicines/paracetamol_ai.jpg';
   const n = (name || '').toLowerCase();
   if (n.includes('paracetamol') || n.includes('calpol') || n.includes('pcm')) return '/medicines/paracetamol_ai.jpg';
   if (n.includes('amoxicillin') || n.includes('amoxil')) return '/medicines/amoxicillin.jpg';
@@ -104,7 +108,7 @@ function getMedicineImage(name, isGenuine = true, uid = '') {
   if (n.includes('amlodipine') || n.includes('norvasc') || n.includes('amlo')) return '/medicines/amlodipine.png';
   if (n.includes('atorvastatin') || n.includes('lipitor') || n.includes('atorva')) return '/medicines/atorvastatin.png';
   // MedTrack generic auto-registered names
-  if (n.includes('medicine 1') || n.includes('med 1')) return '/medicines/ibuprofen.png';
+  if (n.includes('medicine 1') || n.includes('med 1')) return '/medicines/paracetamol_ai.jpg';
   if (n.includes('medicine 2') || n.includes('med 2')) return '/medicines/azithromycin.jpg';
   if (n.includes('medicine 3') || n.includes('med 3')) return '/medicines/amoxicillin.jpg';
   if (n.includes('medicine 4') || n.includes('med 4')) return '/medicines/cetirizine.png';
@@ -116,9 +120,14 @@ function getMedicineImage(name, isGenuine = true, uid = '') {
 }
 
 function getDisplayName(name, uid) {
+  const u = (uid || '').toUpperCase().trim();
+  const cleanU = u.replace(/[^A-F0-9]/g, '');
+  if (u === 'E1:FC:1A:B1' || cleanU === 'E1FC1AB1') return 'Paracetamol 500mg Fast-Action Tablets';
+  if (u === '7D:F0:AE:26' || cleanU === '7DF0AE26') return 'Master Stock-Removing Keycard (7D:F0:AE:26)';
   if (name) {
     const n = name.toLowerCase();
-    if (n.includes('medicine 1') || n.includes('med 1')) return 'Ibuprofen 400mg Tablets';
+    if (n.includes('paracetamol')) return 'Paracetamol 500mg Tablets';
+    if (n.includes('medicine 1') || n.includes('med 1')) return 'Paracetamol 500mg Tablets';
     if (n.includes('medicine 2') || n.includes('med 2')) return 'Azithromycin 500mg Film-Coated';
     if (n.includes('medicine 3') || n.includes('med 3')) return 'Amoxicillin 500mg Capsules';
     if (n.includes('medicine 4') || n.includes('med 4')) return 'Cetirizine 10mg Antihistamine';
@@ -147,17 +156,31 @@ const FEATURED_SAMPLES = [
   },
   {
     id: 'sample-pcm-real',
-    name: 'Paracetamol 650mg Fast-Action',
-    brand: 'Calpol 650 (GSK)',
+    name: 'Paracetamol 500mg Fast-Action Tablets',
+    brand: 'Calpol / GSK Pharma',
     status: 'GENUINE',
     type: 'genuine',
-    description: 'Rapid analgesic and antipyretic formulation. Authentic GSK manufacturing facility proof and cold-chain compliance.',
-    batch: 'BT-PCM-804',
-    purity: '99.6%',
+    description: 'Rapid analgesic and antipyretic formulation. Authentic manufacturing facility proof and RFID cryptographic signature confirmed.',
+    batch: 'BATCH-PAR-001',
+    purity: '99.8%',
     price: '₹35.00',
-    uid: '04:E1:9F:88',
+    uid: 'E1:FC:1A:B1',
     image: '/medicines/paracetamol_ai.jpg',
     actionText: 'Scan Card with NFC Reader'
+  },
+  {
+    id: 'sample-dispenser-keycard',
+    name: 'Master Stock Removing Keycard',
+    brand: 'MedTrack Security Admin',
+    status: 'DISPENSE KEYCARD',
+    type: 'genuine',
+    description: 'Hardware master keycard for automated inventory stock-out. Tap after any medicine within 10s to deduct stock (-1).',
+    batch: 'ADMIN-KEY-001',
+    purity: 'Master Key',
+    price: 'Admin Card',
+    uid: '7D:F0:AE:26',
+    image: '/medicines/paracetamol_ai.jpg',
+    actionText: 'Tap Stock Removing Card'
   },
   {
     id: 'sample-azi-real',
@@ -672,15 +695,66 @@ function Login({ onLogin, devices = [], currentIp }) {
   );
 }
 
-function ScanResultPopup({ scan, onClose }) {
+function ScanResultPopup({ scan, onClose, onDispense, dispenseResult }) {
   if (!scan) return null;
 
-  const isGenuine = scan.event_type !== 'unknown_tag' &&
+  const isDispenserCard = (scan.tag_uid || '').toUpperCase().includes('7D:F0:AE:26') ||
+    (scan.tag_uid || '').toUpperCase().replace(/[^A-F0-9]/g, '') === '7DF0AE26' ||
+    (scan.medicine_name || '').toLowerCase().includes('dispense keycard');
+
+  const isGenuine = isDispenserCard || (scan.event_type !== 'unknown_tag' &&
     (!scan.note || !scan.note.toLowerCase().includes('counterfeit')) &&
-    !!scan.medicine_name;
+    !!scan.medicine_name);
 
   const medicineName = getDisplayName(scan.medicine_name, scan.tag_uid);
   const imgUrl = getMedicineImage(scan.medicine_name, isGenuine, scan.tag_uid);
+
+  const [secondsLeft, setSecondsLeft] = useState(10);
+  const [dispenseDone, setDispenseDone] = useState(scan.action === 'stock_out' || scan.event_type === 'stock_out');
+  const [remainingStock, setRemainingStock] = useState(scan.remaining_quantity ?? scan.current_stock ?? null);
+  const [dispenseBusy, setDispenseBusy] = useState(false);
+
+  useEffect(() => {
+    if (!isGenuine || isDispenserCard || scan.event_type === 'stock_out') return;
+    setSecondsLeft(10);
+    const interval = setInterval(() => {
+      setSecondsLeft(prev => {
+        if (prev <= 1) {
+          clearInterval(interval);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [scan.event_id, isGenuine, isDispenserCard]);
+
+  useEffect(() => {
+    if (dispenseResult && (dispenseResult.medicine_id === scan.medicine_id || !scan.medicine_id)) {
+      setDispenseDone(true);
+      if (dispenseResult.remaining_quantity !== undefined) {
+        setRemainingStock(dispenseResult.remaining_quantity);
+      }
+    }
+  }, [dispenseResult, scan.medicine_id]);
+
+  async function handleDeduct() {
+    if (dispenseBusy || dispenseDone) return;
+    setDispenseBusy(true);
+    try {
+      if (onDispense) {
+        const res = await onDispense(scan.medicine_id);
+        if (res?.ok) {
+          setDispenseDone(true);
+          if (res.remaining_quantity !== undefined) {
+            setRemainingStock(res.remaining_quantity);
+          }
+        }
+      }
+    } finally {
+      setDispenseBusy(false);
+    }
+  }
 
   return (
     <div className="scan-popup-backdrop" onClick={onClose}>
@@ -710,18 +784,78 @@ function ScanResultPopup({ scan, onClose }) {
             )}
             <div>
               <h2 style={{ color: isGenuine ? '#065f46' : '#991b1b' }}>
-                {isGenuine ? 'MEDICINE VERIFIED' : 'NOT VERIFIED'}
+                {isDispenserCard
+                  ? 'MASTER DISPENSER KEYCARD'
+                  : (isGenuine ? 'MEDICINE VERIFIED' : 'NOT VERIFIED')}
               </h2>
               <p style={{ color: isGenuine ? '#047857' : '#b91c1c' }}>
-                {isGenuine
-                  ? 'AUTHENTIC PHARMACEUTICAL RECORD'
-                  : 'CRITICAL ALERT: DUPLICATE / FAKE MEDICINE'}
+                {isDispenserCard
+                  ? 'RFID STOCK-REMOVING MASTER CARD (7D:F0:AE:26)'
+                  : (isGenuine
+                    ? 'AUTHENTIC PHARMACEUTICAL RECORD'
+                    : 'CRITICAL ALERT: DUPLICATE / FAKE MEDICINE')}
               </p>
             </div>
           </div>
         </div>
 
         <div className="scan-popup-body">
+          {/* 10-Second Stock Dispense Banner */}
+          {isGenuine && !isDispenserCard && scan.event_type !== 'stock_out' && (
+            <div className={`popup-dispense-card ${dispenseDone ? 'dispensed' : (secondsLeft > 0 ? 'active' : 'expired')}`}>
+              {dispenseDone ? (
+                <div className="dispense-done-box">
+                  <CheckCircle2 size={24} className="dispense-check-icon" />
+                  <div>
+                    <strong>STOCK REDUCED (-1 UNIT)</strong>
+                    <p>Successfully dispensed 1 unit. Remaining Stock: <b>{remainingStock !== null ? `${remainingStock} units` : 'Updated'}</b></p>
+                  </div>
+                </div>
+              ) : secondsLeft > 0 ? (
+                <div className="dispense-active-box">
+                  <div className="dispense-timer-badge">
+                    <span className="pulse-dot red" />
+                    <span className="timer-val">{secondsLeft}s</span>
+                  </div>
+                  <div className="dispense-timer-details">
+                    <div className="dispense-title-row">
+                      <strong>10-SECOND DISPENSE WINDOW ACTIVE</strong>
+                      {remainingStock !== null && <span className="stock-pill">Current: {remainingStock} in stock</span>}
+                    </div>
+                    <p>
+                      Tap Master Keycard <code>7D:F0:AE:26</code> within <strong>{secondsLeft}s</strong> to deduct <strong>-1 unit</strong> from stock.
+                    </p>
+                    <div className="dispense-progress-bar">
+                      <div className="dispense-progress-fill" style={{ width: `${(secondsLeft / 10) * 100}%` }} />
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-quick-dispense"
+                    onClick={handleDeduct}
+                    disabled={dispenseBusy}
+                  >
+                    {dispenseBusy ? 'Deducting…' : 'Deduct (-1)'}
+                  </button>
+                </div>
+              ) : (
+                <div className="dispense-expired-box">
+                  <span>⏱️ 10-Second dispense window elapsed. Stock remains unchanged.</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {isDispenserCard && (
+            <div className="popup-dispenser-keycard-badge">
+              <ShieldCheck size={24} />
+              <div>
+                <strong>MASTER STOCK-REMOVING KEYCARD READY</strong>
+                <p>Tap a medicine tag first (e.g. Paracetamol), then tap this card within 10 seconds to deduct 1 unit from stock.</p>
+              </div>
+            </div>
+          )}
+
           <div className={`scan-popup-image-container ${isGenuine ? 'verified-border' : 'fake-border'}`}>
             <img
               src={imgUrl}
@@ -734,7 +868,7 @@ function ScanResultPopup({ scan, onClose }) {
             {isGenuine ? (
               <div className="verified-stamp-badge">
                 <CheckCircle2 size={15} />
-                <span>VERIFIED AUTHENTIC</span>
+                <span>{isDispenserCard ? 'MASTER KEYCARD' : 'VERIFIED AUTHENTIC'}</span>
               </div>
             ) : (
               <div className="duplicate-stamp-badge">
@@ -746,11 +880,13 @@ function ScanResultPopup({ scan, onClose }) {
           <div className="scan-popup-info-row">
             <h3 className="scan-popup-medicine-name">{medicineName}</h3>
             <p style={{ margin: 0, fontSize: '13px', color: isGenuine ? '#047857' : '#b91c1c', fontWeight: 600 }}>
-              {isGenuine
-                ? (scan.strength
+              {isDispenserCard
+                ? 'Authorized RFID Stock Dispense Controller (7D:F0:AE:26). Authenticated for automatic stock reduction.'
+                : (isGenuine
+                  ? (scan.strength
                     ? `Clinical Formulation: ${scan.strength} — Serialized RFID signature confirmed.`
                     : 'Authentic formulation. NFC cryptographic signature matches national registry.')
-                : 'SECURITY WARNING: Photocopied clone, duplicate tag, or spurious chemical composition detected!'}
+                  : 'SECURITY WARNING: Photocopied clone, duplicate tag, or spurious chemical composition detected!')}
             </p>
           </div>
 
@@ -764,9 +900,9 @@ function ScanResultPopup({ scan, onClose }) {
               <strong>{scan.device_id || 'esp32-medicine-reader-01'}</strong>
             </div>
             <div className="scan-popup-meta-cell">
-              <span>Verification Status</span>
-              <strong style={{ color: isGenuine ? '#10b981' : '#ef4444' }}>
-                {isGenuine ? '✓ Authentic (Passed)' : '✗ FAKE / DUPLICATE (Rejected)'}
+              <span>Inventory Stock</span>
+              <strong style={{ color: '#0d9488' }}>
+                {remainingStock !== null ? `${remainingStock} units` : (scan.current_stock !== undefined ? `${scan.current_stock} units` : 'In Stock')}
               </strong>
             </div>
             <div className="scan-popup-meta-cell">
@@ -786,7 +922,7 @@ function ScanResultPopup({ scan, onClose }) {
                   : 'linear-gradient(135deg, #dc2626 0%, #b91c1c 100%)'
               }}
             >
-              {isGenuine ? 'Continue Dispensing' : 'Acknowledge Fraud Warning'}
+              {isGenuine ? 'Done / Close' : 'Acknowledge Fraud Warning'}
             </button>
           </div>
         </div>
@@ -967,6 +1103,7 @@ export default function App() {
   const [session, setSession] = useState(null);
   const [dispenseQty, setDispenseQty] = useState(1);
   const [pendingDispense, setPendingDispense] = useState(null);
+  const [dispenseResult, setDispenseResult] = useState(null);
   const pendingDispenseRef = useRef(pendingDispense);
   pendingDispenseRef.current = pendingDispense;
   const dispenseQtyRef = useRef(dispenseQty);
@@ -1184,6 +1321,13 @@ export default function App() {
       if (session?.token) load();
     });
 
+    socket.on('dispense:success', data => {
+      setDispenseResult(data);
+      if (audioEnabledRef.current) playLiveAudio(true);
+      notify(`✅ STOCK REDUCED: ${data.medicine_name} -${data.quantity || 1} unit! Remaining: ${data.remaining_quantity}`);
+      if (session?.token) load();
+    });
+
     socket.on('inventory:updated', () => { if (session?.token) load(); });
 
     return () => {
@@ -1195,6 +1339,24 @@ export default function App() {
   useEffect(() => {
     if (session?.token) load();
   }, [session?.token]);
+
+  async function handleManualDispense(medicineId) {
+    try {
+      const res = await api('/api/dispense/confirm', session?.token || null, {
+        method: 'POST',
+        body: JSON.stringify({ medicine_id: medicineId })
+      });
+      if (res?.ok) {
+        setDispenseResult(res);
+        if (audioEnabledRef.current) playLiveAudio(true);
+        notify(`✅ STOCK REDUCED: ${res.medicine_name} -1 unit! Current Stock: ${res.remaining_quantity}`);
+        if (session?.token) load();
+      }
+      return res;
+    } catch (err) {
+      setError(`Dispense failed: ${err.message}`);
+    }
+  }
 
   const isAdmin = session?.user?.role === 'admin';
   const filtered = useMemo(() =>
@@ -1215,7 +1377,14 @@ export default function App() {
         />
         {toast && <div className="toast">{toast}</div>}
         {error && <div className="alert error"><span>{error}</span><button onClick={() => setError('')}>Dismiss</button></div>}
-        {scanPopup && <ScanResultPopup scan={scanPopup} onClose={() => setScanPopup(null)} />}
+        {scanPopup && (
+          <ScanResultPopup
+            scan={scanPopup}
+            onClose={() => { setScanPopup(null); setDispenseResult(null); }}
+            onDispense={handleManualDispense}
+            dispenseResult={dispenseResult}
+          />
+        )}
       </>
     );
   }
@@ -1724,7 +1893,14 @@ export default function App() {
         )}
 
         <footer>MedTrack RFID · Advanced Pharmaceutical Serialization & Inventory Authentication <span>·</span> Compliant with WHO & US FDA DSCSA Standards.</footer>
-        {scanPopup && <ScanResultPopup scan={scanPopup} onClose={() => setScanPopup(null)} />}
+        {scanPopup && (
+          <ScanResultPopup
+            scan={scanPopup}
+            onClose={() => { setScanPopup(null); setDispenseResult(null); }}
+            onDispense={handleManualDispense}
+            dispenseResult={dispenseResult}
+          />
+        )}
       </main>
     </div>
   );
