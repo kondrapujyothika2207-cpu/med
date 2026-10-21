@@ -172,6 +172,41 @@ app.post('/api/scans', requireDevice, async (req, res) => {
   } catch (e) { console.error(e); res.status(500).json({ error: 'Could not save scan' }); }
 });
 
+app.post('/api/scans/simulate', requireAuth, async (req, res) => {
+  const uid = String(req.body?.tag_uid || '').trim().toUpperCase();
+  const sampleName = req.body?.sample_name || null;
+  const isFake = Boolean(req.body?.is_fake);
+  const note = req.body?.note || (isFake ? 'Counterfeit / Fraudulent sample flagged' : 'Virtual test scan');
+  const eventId = randomUUID();
+
+  try {
+    const match = await query('SELECT medicine_id FROM rfid_tags WHERE uid=$1 AND active=TRUE', [uid]);
+    const medicineId = match.rows[0]?.medicine_id || null;
+    const eventType = isFake ? 'unknown_tag' : (medicineId ? 'identify' : 'unknown_tag');
+
+    const inserted = await query(
+      `INSERT INTO scan_events (event_id,tag_uid,medicine_id,device_id,event_type,note)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING id,event_id,tag_uid,medicine_id,device_id,event_type,scanned_at,note`,
+      [eventId, uid, medicineId, 'nfc-terminal', eventType, note]
+    );
+
+    let medicineName = sampleName;
+    let strength = null;
+    if (medicineId) {
+      const m = await query('SELECT name,strength FROM medicines WHERE id=$1', [medicineId]);
+      medicineName = m.rows[0]?.name || sampleName;
+      strength = m.rows[0]?.strength || null;
+    }
+
+    const payload = { ...inserted.rows[0], medicine_name: medicineName, strength };
+    io.emit('scan:new', payload);
+    res.status(201).json({ ok: true, scan: payload, alert: isFake ? 'warning' : 'genuine' });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Simulation failed' });
+  }
+});
+
 app.post('/api/inventory/adjust', requireAuth, requireRole('admin'), async (req, res) => {
   const medicineId = String(req.body?.medicine_id || '');
   const action = String(req.body?.action || '');
