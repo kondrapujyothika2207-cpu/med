@@ -78,14 +78,14 @@ app.get('/api/medicines', requireAuth, async (_req, res) => {
   const result = await query(`
     SELECT m.id, m.name, m.strength, m.batch_number, m.expiry_date, m.description,
       COALESCE(i.quantity,0)::int AS quantity,
-      (SELECT uid FROM rfid_tags t WHERE t.medicine_id=m.id AND t.active=TRUE ORDER BY t.created_at LIMIT 1) AS tag_uid
+      (SELECT uid FROM rfid_tags t WHERE t.medicine_id=m.id AND t.active=TRUE ORDER BY t.created_at DESC LIMIT 1) AS tag_uid
     FROM medicines m LEFT JOIN inventory i ON i.medicine_id=m.id
     ORDER BY m.name`);
   res.json(result.rows);
 });
 
 app.post('/api/medicines', requireAuth, requireRole('admin'), async (req, res) => {
-  const { name, strength = '', batch_number = '', expiry_date = null, description = '', quantity = 0 } = req.body || {};
+  const { name, strength = '', batch_number = '', expiry_date = null, description = '', quantity = 0, tag_uid = '' } = req.body || {};
   if (!String(name || '').trim()) return res.status(400).json({ error: 'Medicine name is required' });
   const qty = Number(quantity);
   if (!Number.isInteger(qty) || qty < 0) return res.status(400).json({ error: 'Quantity must be a non-negative integer' });
@@ -96,9 +96,22 @@ app.post('/api/medicines', requireAuth, requireRole('admin'), async (req, res) =
       `INSERT INTO medicines (name,strength,batch_number,expiry_date,description) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
       [String(name).trim(), strength, batch_number, expiry_date || null, description]
     );
-    await client.query('INSERT INTO inventory (medicine_id,quantity) VALUES ($1,$2)', [m.rows[0].id, qty]);
+    const medId = m.rows[0].id;
+    await client.query('INSERT INTO inventory (medicine_id,quantity) VALUES ($1,$2)', [medId, qty]);
+
+    let linkedUid = null;
+    if (tag_uid && String(tag_uid).trim()) {
+      linkedUid = String(tag_uid).trim().toUpperCase();
+      await client.query(
+        `INSERT INTO rfid_tags (uid, medicine_id, active) VALUES ($1, $2, TRUE)
+         ON CONFLICT (uid) DO UPDATE SET medicine_id=EXCLUDED.medicine_id, active=TRUE`,
+        [linkedUid, medId]
+      );
+    }
+
     await client.query('COMMIT');
-    res.status(201).json({ ...m.rows[0], quantity: qty });
+    io.emit('inventory:updated', { medicine_id: medId, action: 'created' });
+    res.status(201).json({ ...m.rows[0], quantity: qty, tag_uid: linkedUid });
   } catch (e) {
     await client.query('ROLLBACK'); console.error(e); res.status(500).json({ error: 'Could not create medicine' });
   } finally { client.release(); }
@@ -114,6 +127,32 @@ app.put('/api/medicines/:id', requireAuth, requireRole('admin'), async (req, res
   );
   if (!result.rows[0]) return res.status(404).json({ error: 'Medicine not found' });
   res.json(result.rows[0]);
+});
+
+app.delete('/api/medicines/:id', requireAuth, requireRole('admin'), async (req, res) => {
+  const medicineId = req.params.id;
+  if (!medicineId) return res.status(400).json({ error: 'Medicine ID is required' });
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    await client.query('DELETE FROM rfid_tags WHERE medicine_id=$1', [medicineId]);
+    await client.query('DELETE FROM inventory WHERE medicine_id=$1', [medicineId]);
+    await client.query('DELETE FROM scan_events WHERE medicine_id=$1', [medicineId]);
+    const result = await client.query('DELETE FROM medicines WHERE id=$1 RETURNING id, name', [medicineId]);
+    if (!result.rows[0]) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Medicine not found' });
+    }
+    await client.query('COMMIT');
+    io.emit('inventory:updated', { medicine_id: medicineId, action: 'deleted' });
+    res.json({ ok: true, deleted_id: medicineId, medicine_name: result.rows[0].name });
+  } catch (e) {
+    await client.query('ROLLBACK');
+    console.error(e);
+    res.status(500).json({ error: 'Could not delete medicine' });
+  } finally {
+    client.release();
+  }
 });
 
 app.post('/api/rfid/register', requireAuth, requireRole('admin'), async (req, res) => {

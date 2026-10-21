@@ -714,6 +714,10 @@ function ScanResultPopup({ scan, onClose, onDispense, dispenseResult }) {
   const [remainingStock, setRemainingStock] = useState(scan.remaining_quantity ?? scan.current_stock ?? null);
   const [dispenseBusy, setDispenseBusy] = useState(false);
 
+  const isOutOfStock = remainingStock !== null
+    ? Number(remainingStock) <= 0
+    : (scan.current_stock !== undefined ? Number(scan.current_stock) <= 0 : false);
+
   useEffect(() => {
     if (!isGenuine || isDispenserCard || scan.event_type === 'stock_out') return;
     setSecondsLeft(10);
@@ -739,7 +743,7 @@ function ScanResultPopup({ scan, onClose, onDispense, dispenseResult }) {
   }, [dispenseResult, scan.medicine_id]);
 
   async function handleDeduct() {
-    if (dispenseBusy || dispenseDone) return;
+    if (dispenseBusy || dispenseDone || isOutOfStock) return;
     setDispenseBusy(true);
     try {
       if (onDispense) {
@@ -802,7 +806,7 @@ function ScanResultPopup({ scan, onClose, onDispense, dispenseResult }) {
         <div className="scan-popup-body">
           {/* 10-Second Stock Dispense Banner */}
           {isGenuine && !isDispenserCard && scan.event_type !== 'stock_out' && (
-            <div className={`popup-dispense-card ${dispenseDone ? 'dispensed' : (secondsLeft > 0 ? 'active' : 'expired')}`}>
+            <div className={`popup-dispense-card ${dispenseDone ? 'dispensed' : (isOutOfStock ? 'out-of-stock' : (secondsLeft > 0 ? 'active' : 'expired'))}`}>
               {dispenseDone ? (
                 <div className="dispense-done-box">
                   <CheckCircle2 size={24} className="dispense-check-icon" />
@@ -810,6 +814,30 @@ function ScanResultPopup({ scan, onClose, onDispense, dispenseResult }) {
                     <strong>STOCK REDUCED (-1 UNIT)</strong>
                     <p>Successfully dispensed 1 unit. Remaining Stock: <b>{remainingStock !== null ? `${remainingStock} units` : 'Updated'}</b></p>
                   </div>
+                </div>
+              ) : isOutOfStock ? (
+                <div className="dispense-active-box out-of-stock">
+                  <div className="dispense-timer-badge danger">
+                    <AlertTriangle size={16} />
+                    <span className="timer-val">0 UNITS</span>
+                  </div>
+                  <div className="dispense-timer-details">
+                    <div className="dispense-title-row">
+                      <strong style={{ color: '#dc2626' }}>OUT OF STOCK · DISPENSE LOCKED</strong>
+                      <span className="stock-pill danger">0 in stock</span>
+                    </div>
+                    <p style={{ color: '#b91c1c' }}>
+                      This medicine has 0 units in inventory. Dispense with card 7D:F0:AE:26 is locked until restocked.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-quick-dispense"
+                    disabled={true}
+                    style={{ opacity: 0.5, cursor: 'not-allowed', background: '#94a3b8' }}
+                  >
+                    Out of Stock
+                  </button>
                 </div>
               ) : secondsLeft > 0 ? (
                 <div className="dispense-active-box">
@@ -856,7 +884,7 @@ function ScanResultPopup({ scan, onClose, onDispense, dispenseResult }) {
             </div>
           )}
 
-          <div className={`scan-popup-image-container ${isGenuine ? 'verified-border' : 'fake-border'}`}>
+          <div className={`scan-popup-image-container ${isGenuine ? (isOutOfStock ? 'out-of-stock-border' : 'verified-border') : 'fake-border'}`}>
             <img
               src={imgUrl}
               alt={medicineName}
@@ -866,10 +894,18 @@ function ScanResultPopup({ scan, onClose, onDispense, dispenseResult }) {
               }}
             />
             {isGenuine ? (
-              <div className="verified-stamp-badge">
-                <CheckCircle2 size={15} />
-                <span>{isDispenserCard ? 'MASTER KEYCARD' : 'VERIFIED AUTHENTIC'}</span>
-              </div>
+              <>
+                <div className={`verified-stamp-badge ${isOutOfStock && !isDispenserCard ? 'with-stock-pill' : ''}`}>
+                  <CheckCircle2 size={15} />
+                  <span>{isDispenserCard ? 'MASTER KEYCARD' : 'VERIFIED AUTHENTIC'}</span>
+                </div>
+                {isOutOfStock && !isDispenserCard && (
+                  <div className="out-of-stock-stamp-badge">
+                    <AlertTriangle size={15} />
+                    <span>OUT OF STOCK</span>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="duplicate-stamp-badge">
                 DUPLICATE / FAKE
@@ -901,8 +937,8 @@ function ScanResultPopup({ scan, onClose, onDispense, dispenseResult }) {
             </div>
             <div className="scan-popup-meta-cell">
               <span>Inventory Stock</span>
-              <strong style={{ color: '#0d9488' }}>
-                {remainingStock !== null ? `${remainingStock} units` : (scan.current_stock !== undefined ? `${scan.current_stock} units` : 'In Stock')}
+              <strong style={{ color: isOutOfStock ? '#dc2626' : '#0d9488' }}>
+                {isOutOfStock ? '0 units (OUT OF STOCK)' : (remainingStock !== null ? `${remainingStock} units` : (scan.current_stock !== undefined ? `${scan.current_stock} units` : 'In Stock'))}
               </strong>
             </div>
             <div className="scan-popup-meta-cell">
@@ -1131,7 +1167,9 @@ export default function App() {
   const [toast, setToast] = useState('');
   const [showAdd, setShowAdd] = useState(false);
   const [registeredTags, setRegisteredTags] = useState([]);
-  const [form, setForm] = useState({ name: '', strength: '', batch_number: '', expiry_date: '', quantity: '0', description: '' });
+  const [form, setForm] = useState({ name: '', strength: '', batch_number: '', expiry_date: '', quantity: '0', description: '', tag_uid: '' });
+  const [assignModalMed, setAssignModalMed] = useState(null);
+  const [assignTagUid, setAssignTagUid] = useState('');
   const [tagForm, setTagForm] = useState({ uid: '', medicine_id: '' });
   const [adjustForm, setAdjustForm] = useState({ medicine_id: '', action: 'stock_in', quantity: '1', note: '' });
   const [busy, setBusy] = useState(false);
@@ -1429,13 +1467,69 @@ export default function App() {
   async function addMedicine(e) {
     e.preventDefault(); setBusy(true);
     try {
-      await api('/api/medicines', session.token, { method: 'POST', body: JSON.stringify({ ...form, quantity: Number(form.quantity) }) });
-      setForm({ name: '', strength: '', batch_number: '', expiry_date: '', quantity: '0', description: '' });
+      await api('/api/medicines', session.token, {
+        method: 'POST',
+        body: JSON.stringify({
+          ...form,
+          quantity: Number(form.quantity),
+          tag_uid: form.tag_uid ? form.tag_uid.trim().toUpperCase() : ''
+        })
+      });
+      setForm({ name: '', strength: '', batch_number: '', expiry_date: '', quantity: '0', description: '', tag_uid: '' });
       setShowAdd(false);
       await load();
-      notify('Medicine added');
+      notify('✓ Medicine created and registered successfully');
     } catch (e) {
       setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteMedicine(id, name) {
+    if (!window.confirm(`Are you sure you want to delete "${name}"?\n\nThis will permanently delete this medicine, its inventory record, and all associated RFID card mappings.`)) return;
+    setBusy(true);
+    try {
+      await api('/api/medicines/' + id, session.token, { method: 'DELETE' });
+      await load();
+      notify(`🗑️ Deleted "${name}" and unlinked all associated cards.`);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleAssignCard(e) {
+    if (e) e.preventDefault();
+    if (!assignModalMed || !assignTagUid.trim()) return;
+    setBusy(true);
+    try {
+      const cleanUid = assignTagUid.trim().toUpperCase();
+      await api('/api/rfid/register', session.token, {
+        method: 'POST',
+        body: JSON.stringify({ uid: cleanUid, medicine_id: assignModalMed.id })
+      });
+      setAssignModalMed(null);
+      setAssignTagUid('');
+      await load();
+      notify(`✓ Assigned RFID Card ${cleanUid} to ${assignModalMed.name}`);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleUnlinkCard(uid, medName) {
+    if (!window.confirm(`Unlink RFID card ${uid} from "${medName}"?\n\nWhen unlinked, scanning this card will flag it as an unregistered / suspicious card.`)) return;
+    setBusy(true);
+    try {
+      await api('/api/rfid/' + encodeURIComponent(uid), session.token, { method: 'DELETE' });
+      await load();
+      notify(`Card ${uid} unlinked from ${medName}`);
+    } catch (err) {
+      setError(err.message);
     } finally {
       setBusy(false);
     }
@@ -1645,14 +1739,15 @@ export default function App() {
 
             {showAdd && isAdmin && (
               <form className="form-grid add-form" onSubmit={addMedicine}>
-                <label>Medicine name *<input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} /></label>
+                <label>Medicine name *<input required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder="e.g. Paracetamol" /></label>
                 <label>Strength<input value={form.strength} onChange={e => setForm({ ...form, strength: e.target.value })} placeholder="e.g. 500 mg" /></label>
-                <label>Batch number<input value={form.batch_number} onChange={e => setForm({ ...form, batch_number: e.target.value })} /></label>
+                <label>Assign RFID Card UID (Optional)<input value={form.tag_uid || ''} onChange={e => setForm({ ...form, tag_uid: e.target.value.toUpperCase() })} placeholder="e.g. E1:FC:1A:B1 or tap to assign" /></label>
+                <label>Batch number<input value={form.batch_number} onChange={e => setForm({ ...form, batch_number: e.target.value })} placeholder="e.g. BATCH-001" /></label>
                 <label>Expiry date<input type="date" value={form.expiry_date} onChange={e => setForm({ ...form, expiry_date: e.target.value })} /></label>
                 <label>Opening quantity<input type="number" min="0" step="1" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} /></label>
-                <label>Description<input value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} /></label>
+                <label>Description<input value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="Clinical usage notes..." /></label>
                 <div className="form-actions">
-                  <button className="primary" disabled={busy}>Save medicine</button>
+                  <button className="primary" disabled={busy}>Save Medicine & Link Card</button>
                   <button type="button" className="secondary" onClick={() => setShowAdd(false)}>Cancel</button>
                 </div>
               </form>
@@ -1673,40 +1768,165 @@ export default function App() {
                     <th>Expiry</th>
                     <th>Stock</th>
                     <th>Status</th>
+                    {isAdmin && <th>Admin Actions</th>}
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.map(m => (
-                    <tr key={m.id}>
-                      <td>
-                        <div className="table-med-cell">
-                          <img
-                            src={getMedicineImage(m.name)}
-                            alt={m.name}
-                            className="table-med-thumb"
-                            onError={e => { e.target.style.display = 'none'; }}
-                          />
-                          <div>
-                            <strong>{m.name}</strong>
-                            <small>{m.strength || '—'}</small>
+                  {filtered.map(m => {
+                    const isOutOfStock = Number(m.quantity) <= 0;
+                    return (
+                      <tr key={m.id}>
+                        <td>
+                          <div className="table-med-cell">
+                            <img
+                              src={getMedicineImage(m.name)}
+                              alt={m.name}
+                              className="table-med-thumb"
+                              onError={e => { e.target.style.display = 'none'; }}
+                            />
+                            <div>
+                              <strong>{m.name}</strong>
+                              <small>{m.strength || '—'}</small>
+                            </div>
                           </div>
-                        </div>
-                      </td>
-                      <td>{m.batch_number || '—'}</td>
-                      <td><code>{m.tag_uid || 'Not linked'}</code></td>
-                      <td>{m.expiry_date ? new Date(m.expiry_date).toLocaleDateString() : '—'}</td>
-                      <td>{m.quantity}</td>
-                      <td>
-                        <span className={`status ${Number(m.quantity) <= 10 ? 'warning' : 'good'}`}>
-                          {Number(m.quantity) <= 10 ? 'Low stock' : 'In stock'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td>{m.batch_number || '—'}</td>
+                        <td>
+                          {m.tag_uid ? (
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                              <code style={{ color: '#00f2fe', background: 'rgba(0, 242, 254, 0.12)', padding: '2px 8px', borderRadius: '4px', fontWeight: 600 }}>
+                                {m.tag_uid}
+                              </code>
+                              {isAdmin && (
+                                <button
+                                  type="button"
+                                  title="Unlink this card"
+                                  style={{ background: 'none', border: 'none', color: '#f87171', cursor: 'pointer', padding: '2px 4px', fontSize: '11px', lineHeight: 1 }}
+                                  onClick={() => handleUnlinkCard(m.tag_uid, m.name)}
+                                >
+                                  ✕
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            <span style={{ color: '#94a3b8', fontStyle: 'italic', fontSize: '12px' }}>Not linked</span>
+                          )}
+                        </td>
+                        <td>{m.expiry_date ? new Date(m.expiry_date).toLocaleDateString() : '—'}</td>
+                        <td>
+                          <strong style={{ color: isOutOfStock ? '#ef4444' : '#fff' }}>
+                            {m.quantity} {isOutOfStock ? '(OUT OF STOCK)' : 'units'}
+                          </strong>
+                        </td>
+                        <td>
+                          <span className={`status ${isOutOfStock ? 'danger' : Number(m.quantity) <= 10 ? 'warning' : 'good'}`}>
+                            {isOutOfStock ? 'Out of stock' : Number(m.quantity) <= 10 ? 'Low stock' : 'In stock'}
+                          </span>
+                        </td>
+                        {isAdmin && (
+                          <td>
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                              <button
+                                type="button"
+                                className="btn-action-assign"
+                                onClick={() => {
+                                  setAssignModalMed(m);
+                                  setAssignTagUid(m.tag_uid || '');
+                                }}
+                              >
+                                <Radio size={12} /> {m.tag_uid ? 'Reassign Card' : 'Assign Card'}
+                              </button>
+                              <button
+                                type="button"
+                                className="btn-action-delete"
+                                onClick={() => deleteMedicine(m.id, m.name)}
+                                disabled={busy}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
               {!filtered.length && <div className="empty">No medicine records found.</div>}
             </div>
+
+            {assignModalMed && (
+              <div className="modal-backdrop" onClick={() => setAssignModalMed(null)}>
+                <div className="modal-dialog-panel" onClick={e => e.stopPropagation()}>
+                  <div className="modal-dialog-header">
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: '17px', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Radio size={18} color="#00f2fe" /> Assign RFID Card
+                      </h3>
+                      <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#94a3b8' }}>
+                        Link an RFID card / tag UID to <strong>{assignModalMed.name}</strong>
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setAssignModalMed(null)}
+                      style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '20px', lineHeight: 1 }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleAssignCard} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>
+                        Selected Medicine
+                      </label>
+                      <input
+                        type="text"
+                        disabled
+                        value={`${assignModalMed.name} (${assignModalMed.strength || 'Standard'})`}
+                        style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#cbd5e1', padding: '8px 12px', borderRadius: '8px' }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', color: '#00f2fe', marginBottom: '6px', fontWeight: 600 }}>
+                        RFID Card UID (Hex) *
+                      </label>
+                      <input
+                        type="text"
+                        required
+                        autoFocus
+                        placeholder="e.g. E1:FC:1A:B1 or 7D:F0:AE:26"
+                        value={assignTagUid}
+                        onChange={e => setAssignTagUid(e.target.value.toUpperCase())}
+                        style={{ width: '100%', background: 'rgba(0,242,254,0.05)', border: '1px solid rgba(0,242,254,0.35)', color: '#fff', padding: '10px 12px', borderRadius: '8px', fontFamily: 'monospace', fontSize: '14px' }}
+                      />
+                      <small style={{ color: '#94a3b8', fontSize: '11px', marginTop: '6px', display: 'block', lineHeight: 1.4 }}>
+                        Enter the card hex UID. When this RFID card is tapped on the reader, the system will instantly verify and display {assignModalMed.name}.
+                      </small>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '8px' }}>
+                      <button
+                        type="button"
+                        className="secondary"
+                        onClick={() => setAssignModalMed(null)}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="primary"
+                        disabled={busy || !assignTagUid.trim()}
+                      >
+                        Save & Link Card
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
           </section>
         )}
 
