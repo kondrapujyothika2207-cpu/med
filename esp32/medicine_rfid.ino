@@ -48,6 +48,8 @@
 #include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
 #include <esp_system.h>
+#include "soc/soc.h"
+#include "soc/rtc_cntl_reg.h"
 
 // ====================================================
 // HARDWARE SELECTOR
@@ -90,7 +92,7 @@ String currentApiBaseUrl          = API_BASE_URL_PRIMARY;
 
 const char* DEVICE_API_KEY = "esp32-device-secure-key-9988776655";
 const char* DEVICE_ID      = "esp32-medicine-reader-01";
-const char* FIRMWARE_VER   = "1.4.0";
+const char* FIRMWARE_VER   = "1.4.1";
 
 unsigned long lastHeartbeat = 0;
 unsigned long lastScanSent  = 0;
@@ -309,6 +311,13 @@ void processTagScan(const String& uid) {
   Serial.printf(">>> SCAN DETECTED: %s\n", uid.c_str());
   Serial.printf("=================================================\n");
 
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("⚠️ Wi-Fi is currently disconnected. Cannot verify with server.");
+    playBuzzerTone(1000, 200);
+    delay(400);
+    return;
+  }
+
   bool isGenuine = false;
   String medName = "";
   bool ok = postScanToServer("/api/scans", doc, isGenuine, medName);
@@ -316,9 +325,13 @@ void processTagScan(const String& uid) {
   if (ok && isGenuine) {
     Serial.printf("✓ AUTHENTIC MEDICINE: %s\n", medName.c_str());
     indicateRealMedicine(); // Green LED ON for 2s (Blue is OFF)
-  } else {
+  } else if (ok && !isGenuine) {
     Serial.println("✗ SUSPECT / COUNTERFEIT MEDICINE ALERT!");
     indicateFakeMedicine(); // Red LED flashes with alarm (Blue is OFF)
+  } else {
+    Serial.println("⚠️ Server communication failed. Not classifying as fake.");
+    playBuzzerTone(1000, 200);
+    delay(400);
   }
 
   // Restore Blue LED if Wi-Fi remains connected
@@ -333,81 +346,58 @@ void processTagScan(const String& uid) {
 const char* getWifiStatusText(wl_status_t status) {
   switch (status) {
     case WL_IDLE_STATUS:     return "Idle";
-    case WL_NO_SSID_AVAIL:   return "SSID not found! (Hotspot is 5GHz or turned off)";
+    case WL_NO_SSID_AVAIL:   return "SSID not found (Check 2.4GHz / Hotspot turned on)";
     case WL_SCAN_COMPLETED:  return "Scan completed";
     case WL_CONNECTED:       return "Connected";
-    case WL_CONNECT_FAILED:  return "Connect failed! (Check password / WPA2)";
+    case WL_CONNECT_FAILED:  return "Connect failed (Check password / WPA2 security)";
     case WL_CONNECTION_LOST: return "Connection lost";
     case WL_DISCONNECTED:    return "Disconnected";
     default:                 return "Unknown";
   }
 }
 
-void scanNearbyWifi() {
-  Serial.println("\n--- Scanning for visible 2.4GHz Wi-Fi networks ---");
-  int n = WiFi.scanNetworks();
-  if (n <= 0) {
-    Serial.println("  ❌ No networks found! (Check 2.4GHz band / Hotspot enabled)");
-  } else {
-    Serial.printf("  Found %d network(s):\n", n);
-    bool hotspotFound = false;
-    for (int i = 0; i < n; ++i) {
-      String ssid = WiFi.SSID(i);
-      Serial.printf("   %2d: %-30s | Signal: %d dBm | Ch: %2d\n", i + 1, ssid.c_str(), WiFi.RSSI(i), WiFi.channel(i));
-      if (ssid == WIFI_SSID) hotspotFound = true;
-    }
-    if (hotspotFound) {
-      Serial.println("  ✓ Hotspot found in scan! Checking password & WPA2 security...");
-    } else {
-      Serial.println("  ❌ Hotspot NOT visible in 2.4GHz scan! Your phone is broadcasting on 5GHz.");
-      Serial.println("     FIX: On Nothing Phone, turn on 'Extend compatibility' or set AP Band to 2.4 GHz.");
-    }
-  }
-  Serial.println("--------------------------------------------------\n");
-}
-
 void connectWifi() {
-  WiFi.disconnect(true); // Clear previous state & NVS flash cache
-  delay(150);
+  WiFi.persistent(false); // Do not write Wi-Fi config to flash on every boot
   WiFi.mode(WIFI_STA);
+  WiFi.setTxPower(WIFI_POWER_15dBm); // Mitigate current surge that triggers brownout reset
   WiFi.setAutoReconnect(true);
 
   Serial.printf("\nConnecting to Wi-Fi SSID: '%s'...\n", WIFI_SSID);
+  Serial.flush();
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
+  // Quick initial check (up to 5 seconds) - never hang or block setup!
   unsigned long start = millis();
-  while (WiFi.status() != WL_CONNECTED && millis() - start < 15000) {
-    delay(400);
+  while (WiFi.status() != WL_CONNECTED && millis() - start < 5000) {
+    delay(250);
+    yield();
     Serial.print(".");
-    // Blink Blue LED while connecting
-    digitalWrite(BLUE_LED_PIN, !digitalRead(BLUE_LED_PIN));
+    digitalWrite(BLUE_LED_PIN, !digitalRead(BLUE_LED_PIN)); // Blink Blue LED while connecting
   }
   Serial.println();
 
   if (WiFi.status() == WL_CONNECTED) {
-    digitalWrite(BLUE_LED_PIN, HIGH); // Blue LED Solid ON when connected
+    digitalWrite(BLUE_LED_PIN, HIGH); // Blue LED Solid ON
     Serial.println("=================================================");
     Serial.println("✓ WI-FI CONNECTED!");
     Serial.print("  ESP32 Local IP: ");
     Serial.println(WiFi.localIP());
-    Serial.print("  Gateway:        ");
-    Serial.println(WiFi.gatewayIP());
-    Serial.print("  Signal (RSSI):  ");
-    Serial.print(WiFi.RSSI());
-    Serial.println(" dBm");
     Serial.print("  Target Backend: ");
     Serial.println(currentApiBaseUrl);
     Serial.println("=================================================");
     buzzerWifiConnected();
     sendHeartbeat();
   } else {
-    digitalWrite(BLUE_LED_PIN, LOW); // Turn off if not connected
-    Serial.printf("❌ Connection failed! Reason: %s (Code: %d)\n", getWifiStatusText(WiFi.status()), (int)WiFi.status());
-    scanNearbyWifi();
+    digitalWrite(BLUE_LED_PIN, LOW);
+    Serial.printf("ℹ [Wi-Fi] Status: %s (will auto-connect in background).\n", getWifiStatusText(WiFi.status()));
+    Serial.println("  Proceeding to PN532 RFID reader initialization...");
   }
 }
 
 void setup() {
+  // Disable brownout detector to prevent ESP32 power-sag reboot loops during RF spikes
+  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
+
   Serial.begin(115200);
 
   // Initialize LED & Buzzer Pins
@@ -421,13 +411,13 @@ void setup() {
   digitalWrite(RED_LED_PIN, LOW);
   digitalWrite(BUZZER_PIN, LOW);
 
-  delay(600);
+  delay(300);
   Serial.println("\n\n=================================================");
   Serial.println("  MedTrack RFID Smart Medicine Authentication    ");
-  Serial.println("  ESP32 Firmware v1.3.0 - Hardware Ready         ");
+  Serial.println("  ESP32 Firmware v1.4.1 - Hardware Ready         ");
   Serial.println("=================================================");
 
-  // Connect to Wi-Fi
+  // Connect to Wi-Fi (non-blocking)
   connectWifi();
 
 #if USE_RC522
@@ -462,21 +452,45 @@ void setup() {
 }
 
 void loop() {
-  // Auto-connect watchdog
-  if (WiFi.status() != WL_CONNECTED) {
-    digitalWrite(BLUE_LED_PIN, LOW);
-    static unsigned long lastReconnectAttempt = 0;
-    if (millis() - lastReconnectAttempt > 6000) {
-      lastReconnectAttempt = millis();
-      Serial.println("[Wi-Fi Watchdog] Reconnecting to Wi-Fi...");
-      WiFi.disconnect();
-      WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  // ----------------------------------------------------
+  // NON-BLOCKING BACKGROUND WI-FI & HEARTBEAT HANDLER
+  // ----------------------------------------------------
+  static bool wasConnected = false;
+  static unsigned long lastReconnectAttempt = 0;
+
+  if (WiFi.status() == WL_CONNECTED) {
+    if (!wasConnected) {
+      wasConnected = true;
+      digitalWrite(BLUE_LED_PIN, HIGH); // Solid Blue ON when connected
+      Serial.println("\n=================================================");
+      Serial.println("✓ WI-FI CONNECTED (Background)!");
+      Serial.print("  ESP32 Local IP: ");
+      Serial.println(WiFi.localIP());
+      Serial.println("=================================================");
+      buzzerWifiConnected();
+      sendHeartbeat();
+    } else {
+      digitalWrite(BLUE_LED_PIN, HIGH);
     }
-  } else {
-    digitalWrite(BLUE_LED_PIN, HIGH); // Blue LED stays Solid ON while Wi-Fi is active
+
     if (millis() - lastHeartbeat >= HEARTBEAT_INTERVAL_MS) {
       lastHeartbeat = millis();
       sendHeartbeat();
+    }
+  } else {
+    if (wasConnected) {
+      wasConnected = false;
+      digitalWrite(BLUE_LED_PIN, LOW); // Turn off Blue LED when disconnected
+      Serial.println("[Wi-Fi] Connection lost. Auto-reconnecting in background...");
+    } else {
+      digitalWrite(BLUE_LED_PIN, LOW);
+    }
+
+    // Try background reconnect every 15s without interrupting RFID reading
+    if (millis() - lastReconnectAttempt > 15000) {
+      lastReconnectAttempt = millis();
+      Serial.println("[Wi-Fi Watchdog] Reconnecting in background...");
+      WiFi.reconnect();
     }
   }
 
