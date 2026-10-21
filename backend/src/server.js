@@ -132,6 +132,72 @@ app.post('/api/rfid/register', requireAuth, requireRole('admin'), async (req, re
   } catch { res.status(400).json({ error: 'Invalid medicine ID or tag registration failed' }); }
 });
 
+app.post('/api/medicines/register-tag', requireDevice, async (req, res) => {
+  const uid = String(req.body?.tag_uid || req.body?.uid || '').trim().toUpperCase();
+  const medicineName = String(req.body?.medicine_name || '').trim();
+  if (!uid) return res.status(400).json({ error: 'tag_uid is required' });
+
+  try {
+    let medId = null;
+    if (medicineName) {
+      const match = await query('SELECT id FROM medicines WHERE LOWER(name) = LOWER($1) LIMIT 1', [medicineName]);
+      if (match.rows[0]) {
+        medId = match.rows[0].id;
+      } else {
+        const newMed = await query(
+          'INSERT INTO medicines (name, strength, batch_number) VALUES ($1, $2, $3) RETURNING id',
+          [medicineName, 'Standard', 'BATCH-AUTO-' + Date.now().toString().slice(-4)]
+        );
+        medId = newMed.rows[0].id;
+      }
+    } else {
+      const fallback = await query('SELECT id FROM medicines ORDER BY name LIMIT 1');
+      medId = fallback.rows[0]?.id;
+    }
+
+    if (!medId) return res.status(400).json({ error: 'No medicine available' });
+
+    await query(
+      `INSERT INTO rfid_tags (uid, medicine_id, active) VALUES ($1, $2, TRUE)
+       ON CONFLICT (uid) DO UPDATE SET medicine_id = EXCLUDED.medicine_id, active = TRUE`,
+      [uid, medId]
+    );
+
+    res.json({ ok: true, tag_uid: uid, medicine_id: medId, message: 'Tag registered' });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Could not register tag' });
+  }
+});
+
+app.get('/api/rfid/tags', requireAuth, requireRole('admin'), async (_req, res) => {
+  try {
+    const result = await query(
+      `SELECT t.uid, t.medicine_id, t.active, t.created_at, m.name as medicine_name, m.strength, m.batch_number
+       FROM rfid_tags t
+       LEFT JOIN medicines m ON m.id = t.medicine_id
+       ORDER BY t.created_at DESC`
+    );
+    res.json(result.rows);
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Could not fetch RFID tags' });
+  }
+});
+
+app.delete('/api/rfid/:uid', requireAuth, requireRole('admin'), async (req, res) => {
+  const uid = decodeURIComponent(String(req.params.uid || '')).trim().toUpperCase();
+  if (!uid) return res.status(400).json({ error: 'UID is required' });
+  try {
+    const result = await query('DELETE FROM rfid_tags WHERE UPPER(uid) = $1 RETURNING uid', [uid]);
+    if (!result.rows[0]) return res.status(404).json({ error: 'Tag not found' });
+    res.json({ ok: true, deleted_uid: uid });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ error: 'Could not delete tag' });
+  }
+});
+
 app.get('/api/scans', requireAuth, async (req, res) => {
   const limit = Math.min(Math.max(Number(req.query.limit) || 50, 1), 200);
   const result = await query(

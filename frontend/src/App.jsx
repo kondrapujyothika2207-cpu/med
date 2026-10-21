@@ -732,6 +732,7 @@ export default function App() {
   const [error, setError] = useState('');
   const [toast, setToast] = useState('');
   const [showAdd, setShowAdd] = useState(false);
+  const [registeredTags, setRegisteredTags] = useState([]);
   const [form, setForm] = useState({ name: '', strength: '', batch_number: '', expiry_date: '', quantity: '0', description: '' });
   const [tagForm, setTagForm] = useState({ uid: '', medicine_id: '' });
   const [adjustForm, setAdjustForm] = useState({ medicine_id: '', action: 'stock_in', quantity: '1', note: '' });
@@ -745,12 +746,18 @@ export default function App() {
   async function load() {
     if (!session?.token) return;
     try {
-      const [m, s, d] = await Promise.all([
+      const promises = [
         api('/api/medicines', session.token),
         api('/api/scans?limit=80', session.token),
         api('/api/devices', session.token)
-      ]);
-      setMedicines(m); setScans(s); setDevices(d); setError('');
+      ];
+      if (session?.user?.role === 'admin') {
+        promises.push(api('/api/rfid/tags', session.token).catch(() => []));
+      }
+      const [m, s, d, t] = await Promise.all(promises);
+      setMedicines(m); setScans(s); setDevices(d);
+      if (t) setRegisteredTags(t);
+      setError('');
     } catch (e) {
       setError(e.message);
     }
@@ -853,7 +860,21 @@ export default function App() {
       await api('/api/rfid/register', session.token, { method: 'POST', body: JSON.stringify({ uid: tagForm.uid, medicine_id: tagForm.medicine_id }) });
       setTagForm({ uid: '', medicine_id: '' });
       await load();
-      notify('RFID tag registered');
+      notify('RFID tag registered & verified');
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteTag(uid) {
+    if (!window.confirm(`Delete tag ${uid}? It will immediately become SUSPICIOUS / COUNTERFEIT when scanned.`)) return;
+    setBusy(true);
+    try {
+      await api('/api/rfid/' + encodeURIComponent(uid), session.token, { method: 'DELETE' });
+      await load();
+      notify(`Tag ${uid} unlinked and marked suspicious`);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -1204,31 +1225,79 @@ export default function App() {
           <section className="panel">
             <div className="panel-head">
               <div>
-                <h3>Register RFID UID</h3>
-                <p>Scan a tag using the ESP32, then link its UID to a medicine record.</p>
+                <h3>RFID Tag Authorization & Registry</h3>
+                <p>Register, reassign, or delete RFID tags. Unregistered/deleted tags will trigger the red counterfeit alarm on the ESP32.</p>
               </div>
             </div>
+
             <form className="form-grid" onSubmit={registerTag}>
               <label>
-                RFID UID
-                <input required value={tagForm.uid} onChange={e => setTagForm({ ...tagForm, uid: e.target.value.toUpperCase() })} placeholder="e.g. 04A1B2C3D4" />
+                RFID UID (Hex)
+                <input required value={tagForm.uid} onChange={e => setTagForm({ ...tagForm, uid: e.target.value.toUpperCase() })} placeholder="e.g. 7D:F0:AE:26" />
               </label>
               <label>
-                Medicine
+                Associate with Medicine
                 <select required value={tagForm.medicine_id} onChange={e => setTagForm({ ...tagForm, medicine_id: e.target.value })}>
                   <option value="">Choose medicine</option>
                   {medicines.map(m => (
-                    <option value={m.id} key={m.id}>{m.name} — {m.strength || 'no strength'}</option>
+                    <option value={m.id} key={m.id}>{m.name} — {m.strength || 'Standard'}</option>
                   ))}
                 </select>
               </label>
               <div className="form-actions">
-                <button className="primary" disabled={busy || !medicines.length}>Link tag</button>
+                <button className="primary" disabled={busy || !medicines.length}>Authorize & Link Tag</button>
               </div>
             </form>
-            <div className="notice">
+
+            <div style={{ marginTop: '24px' }}>
+              <h4 style={{ color: '#fff', fontSize: '15px', marginBottom: '12px' }}>
+                Currently Authorized Tags ({registeredTags.length})
+              </h4>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Tag UID</th>
+                      <th>Linked Medicine</th>
+                      <th>Strength</th>
+                      <th>Batch Number</th>
+                      <th>Status</th>
+                      <th>Admin Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {registeredTags.length === 0 ? (
+                      <tr><td colSpan="6" style={{ textAlign: 'center', opacity: 0.6 }}>No tags registered yet. Link a tag above.</td></tr>
+                    ) : (
+                      registeredTags.map(t => (
+                        <tr key={t.uid}>
+                          <td><span className="code-pill">{t.uid}</span></td>
+                          <td><strong>{t.medicine_name || 'Unassigned'}</strong></td>
+                          <td>{t.strength || '—'}</td>
+                          <td><small>{t.batch_number || '—'}</small></td>
+                          <td><span className="badge badge-genuine">Active / Genuine</span></td>
+                          <td>
+                            <button
+                              type="button"
+                              className="btn-danger-outline"
+                              style={{ padding: '4px 10px', fontSize: '12px', borderRadius: '6px', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.4)', color: '#f87171', cursor: 'pointer' }}
+                              onClick={() => deleteTag(t.uid)}
+                              disabled={busy}
+                            >
+                              Delete / Mark Suspicious
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div className="notice" style={{ marginTop: '16px' }}>
               <Radio size={18} />
-              <span>UIDs can be read from the scan history even when they are not registered. Only admins can register or reassign tags.</span>
+              <span>Deleting an RFID tag here removes it from the authorization database. When that tag is subsequently tapped on the ESP32, the system will instantly classify it as suspicious and flash the red warning alarm.</span>
             </div>
           </section>
         )}

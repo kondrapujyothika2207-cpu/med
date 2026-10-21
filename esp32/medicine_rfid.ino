@@ -86,13 +86,13 @@ const char* WIFI_SSID     = "Nothing Phone (3a)_2505";
 const char* WIFI_PASSWORD = "praveen DSP";
 
 // Target Backends: Primary Cloud Render URL + Local Fallback
-const char* API_BASE_URL_PRIMARY  = "https://med-rfid.onrender.com"; // Primary cloud website
+const char* API_BASE_URL_PRIMARY  = "https://med-z6io.onrender.com"; // Primary cloud website
 const char* API_BASE_URL_FALLBACK = "http://10.36.170.52:4000";     // Local laptop backend
 String currentApiBaseUrl          = API_BASE_URL_PRIMARY;
 
 const char* DEVICE_API_KEY = "esp32-device-secure-key-9988776655";
 const char* DEVICE_ID      = "esp32-medicine-reader-01";
-const char* FIRMWARE_VER   = "1.4.3";
+const char* FIRMWARE_VER   = "1.5.0";
 
 unsigned long lastHeartbeat = 0;
 unsigned long lastScanSent  = 0;
