@@ -1169,6 +1169,10 @@ export default function App() {
   const [form, setForm] = useState({ name: '', strength: '', batch_number: '', expiry_date: '', quantity: '0', description: '', tag_uid: '' });
   const [assignModalMed, setAssignModalMed] = useState(null);
   const [assignTagUid, setAssignTagUid] = useState('');
+  const [stockModalMed, setStockModalMed] = useState(null);
+  const [stockInputQty, setStockInputQty] = useState('10');
+  const [stockActionType, setStockActionType] = useState('stock_in');
+  const [stockNote, setStockNote] = useState('');
   const [tagForm, setTagForm] = useState({ uid: '', medicine_id: '' });
   const [adjustForm, setAdjustForm] = useState({ medicine_id: '', action: 'stock_in', quantity: '1', note: '' });
   const [busy, setBusy] = useState(false);
@@ -1534,6 +1538,57 @@ export default function App() {
     }
   }
 
+  async function quickStockChange(medicineId, action, qty) {
+    setBusy(true);
+    try {
+      const res = await api('/api/inventory/adjust', session.token, {
+        method: 'POST',
+        body: JSON.stringify({
+          medicine_id: medicineId,
+          action,
+          quantity: qty,
+          note: `Quick ${action === 'stock_in' ? 'add' : 'deduct'} (+${qty}) via catalogue table`
+        })
+      });
+      await load();
+      notify(`✓ Stock updated: ${res.medicine_name || 'Medicine'} stock is now ${res.quantity} units`);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleStockModalSubmit(e) {
+    if (e) e.preventDefault();
+    if (!stockModalMed) return;
+    const qty = Number(stockInputQty);
+    if (!Number.isInteger(qty) || qty < 0) {
+      setError('Please enter a valid non-negative integer quantity');
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await api('/api/inventory/adjust', session.token, {
+        method: 'POST',
+        body: JSON.stringify({
+          medicine_id: stockModalMed.id,
+          action: stockActionType,
+          quantity: qty,
+          note: stockNote || `Catalogue stock adjustment (${stockActionType})`
+        })
+      });
+      setStockModalMed(null);
+      setStockNote('');
+      await load();
+      notify(`✓ Stock updated: ${stockModalMed.name} stock is now ${res.quantity} units`);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function registerTag(e) {
     e.preventDefault(); setBusy(true);
     try {
@@ -1813,9 +1868,35 @@ export default function App() {
                         </td>
                         <td>{m.expiry_date ? new Date(m.expiry_date).toLocaleDateString() : '—'}</td>
                         <td>
-                          <strong style={{ color: isOutOfStock ? '#ef4444' : '#fff' }}>
-                            {m.quantity} {isOutOfStock ? '(OUT OF STOCK)' : 'units'}
-                          </strong>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <strong style={{ color: isOutOfStock ? '#ef4444' : '#fff' }}>
+                                {m.quantity} {isOutOfStock ? '(OUT OF STOCK)' : 'units'}
+                              </strong>
+                              {isAdmin && (
+                                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', marginLeft: '4px' }}>
+                                  <button
+                                    type="button"
+                                    title="Add 1 unit (+1)"
+                                    className="btn-quick-stock"
+                                    onClick={() => quickStockChange(m.id, 'stock_in', 1)}
+                                    disabled={busy}
+                                  >
+                                    +1
+                                  </button>
+                                  <button
+                                    type="button"
+                                    title="Add 10 units (+10)"
+                                    className="btn-quick-stock"
+                                    onClick={() => quickStockChange(m.id, 'stock_in', 10)}
+                                    disabled={busy}
+                                  >
+                                    +10
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
                         </td>
                         <td>
                           <span className={`status ${isOutOfStock ? 'danger' : Number(m.quantity) <= 10 ? 'warning' : 'good'}`}>
@@ -1824,7 +1905,19 @@ export default function App() {
                         </td>
                         {isAdmin && (
                           <td>
-                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                              <button
+                                type="button"
+                                className="btn-action-stock"
+                                onClick={() => {
+                                  setStockModalMed(m);
+                                  setStockInputQty('10');
+                                  setStockActionType('stock_in');
+                                }}
+                                title="Adjust inventory stock for this medicine"
+                              >
+                                <Boxes size={12} /> Stock
+                              </button>
                               <button
                                 type="button"
                                 className="btn-action-assign"
@@ -1920,6 +2013,128 @@ export default function App() {
                         disabled={busy || !assignTagUid.trim()}
                       >
                         Save & Link Card
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+
+            {stockModalMed && (
+              <div className="modal-backdrop" onClick={() => setStockModalMed(null)}>
+                <div className="modal-dialog-panel" onClick={e => e.stopPropagation()}>
+                  <div className="modal-dialog-header">
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: '17px', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Boxes size={18} color="#10b981" /> Update Medicine Stock
+                      </h3>
+                      <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#94a3b8' }}>
+                        Adjust inventory for <strong>{stockModalMed.name}</strong> ({stockModalMed.strength || 'Standard'})
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setStockModalMed(null)}
+                      style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', fontSize: '20px', lineHeight: 1 }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+
+                  <form onSubmit={handleStockModalSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                    <div style={{ background: 'rgba(255,255,255,0.03)', padding: '12px 14px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.08)' }}>
+                      <span style={{ fontSize: '12px', color: '#94a3b8', display: 'block' }}>Current Stock Level</span>
+                      <strong style={{ fontSize: '20px', color: Number(stockModalMed.quantity) <= 0 ? '#ef4444' : '#10b981', display: 'block', marginTop: '2px' }}>
+                        {stockModalMed.quantity} units {Number(stockModalMed.quantity) <= 0 ? '(OUT OF STOCK)' : ''}
+                      </strong>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '8px' }}>
+                        Action Mode
+                      </label>
+                      <div className="stock-action-tabs">
+                        <button
+                          type="button"
+                          className={`action-tab-btn ${stockActionType === 'stock_in' ? 'active' : ''}`}
+                          onClick={() => setStockActionType('stock_in')}
+                        >
+                          + Increase Stock
+                        </button>
+                        <button
+                          type="button"
+                          className={`action-tab-btn ${stockActionType === 'stock_out' ? 'active' : ''}`}
+                          onClick={() => setStockActionType('stock_out')}
+                        >
+                          - Reduce Stock
+                        </button>
+                        <button
+                          type="button"
+                          className={`action-tab-btn ${stockActionType === 'set' ? 'active' : ''}`}
+                          onClick={() => setStockActionType('set')}
+                        >
+                          = Set Exact Total
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', color: '#10b981', marginBottom: '6px', fontWeight: 600 }}>
+                        {stockActionType === 'set' ? 'Set Total Stock Count *' : 'Quantity to Adjust *'}
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="1"
+                        required
+                        autoFocus
+                        value={stockInputQty}
+                        onChange={e => setStockInputQty(e.target.value)}
+                        style={{ width: '100%', background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.4)', color: '#fff', padding: '10px 12px', borderRadius: '8px', fontSize: '16px', fontWeight: 700 }}
+                      />
+                      <div className="stock-pill-row">
+                        <span style={{ fontSize: '11px', color: '#94a3b8', alignSelf: 'center', marginRight: '4px' }}>Quick:</span>
+                        {[5, 10, 25, 50, 100].map(val => (
+                          <button
+                            type="button"
+                            key={val}
+                            className="btn-pill-qty"
+                            onClick={() => setStockInputQty(String(val))}
+                          >
+                            +{val}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label style={{ display: 'block', fontSize: '12px', color: '#94a3b8', marginBottom: '6px' }}>
+                        Audit Note (Optional)
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g. Restocked batch / Manual inventory update"
+                        value={stockNote}
+                        onChange={e => setStockNote(e.target.value)}
+                        style={{ width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#cbd5e1', padding: '8px 12px', borderRadius: '8px', fontSize: '13px' }}
+                      />
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end', marginTop: '8px' }}>
+                      <button
+                        type="button"
+                        className="secondary"
+                        onClick={() => setStockModalMed(null)}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="primary"
+                        disabled={busy || !stockInputQty.trim()}
+                        style={{ background: '#10b981', borderColor: '#10b981' }}
+                      >
+                        Confirm Stock Update
                       </button>
                     </div>
                   </form>

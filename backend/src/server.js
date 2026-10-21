@@ -186,6 +186,7 @@ app.post('/api/medicines/register-tag', requireDevice, async (req, res) => {
           [medicineName, 'Standard', 'BATCH-AUTO-' + Date.now().toString().slice(-4)]
         );
         medId = newMed.rows[0].id;
+        await query('INSERT INTO inventory (medicine_id, quantity) VALUES ($1, 0) ON CONFLICT (medicine_id) DO NOTHING', [medId]);
       }
     } else {
       const fallback = await query('SELECT id FROM medicines ORDER BY name LIMIT 1');
@@ -571,33 +572,59 @@ app.post('/api/inventory/adjust', requireAuth, requireRole('admin'), async (req,
   const action = String(req.body?.action || '');
   const quantity = Number(req.body?.quantity);
   const note = String(req.body?.note || '').slice(0, 500);
-  if (!medicineId || !['stock_in','stock_out'].includes(action) || !Number.isInteger(quantity) || quantity <= 0) {
-    return res.status(400).json({ error: 'medicine_id, action stock_in/stock_out, and positive integer quantity are required' });
+
+  if (!medicineId || !['stock_in', 'stock_out', 'set'].includes(action) || !Number.isInteger(quantity) || quantity < 0) {
+    return res.status(400).json({ error: 'medicine_id, valid action (stock_in, stock_out, set), and non-negative integer quantity are required' });
   }
+
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    const inv = await client.query('SELECT quantity FROM inventory WHERE medicine_id=$1 FOR UPDATE', [medicineId]);
-    if (!inv.rows[0]) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Inventory record not found' }); }
-    const current = inv.rows[0].quantity;
-    if (action === 'stock_out' && current < quantity) {
-      await client.query('ROLLBACK'); return res.status(409).json({ error: 'Insufficient stock' });
+    const med = await client.query('SELECT id, name FROM medicines WHERE id=$1', [medicineId]);
+    if (!med.rows[0]) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Medicine not found' });
     }
-    const next = action === 'stock_in' ? current + quantity : current - quantity;
-    await client.query('UPDATE inventory SET quantity=$1,updated_at=NOW() WHERE medicine_id=$2', [next, medicineId]);
+
+    const inv = await client.query('SELECT quantity FROM inventory WHERE medicine_id=$1 FOR UPDATE', [medicineId]);
+    const current = inv.rows[0] ? Number(inv.rows[0].quantity) : 0;
+
+    let next = current;
+    if (action === 'stock_in') {
+      next = current + quantity;
+    } else if (action === 'stock_out') {
+      if (current < quantity) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({ error: `Insufficient stock. Current available: ${current}` });
+      }
+      next = current - quantity;
+    } else if (action === 'set') {
+      next = quantity;
+    }
+
+    await client.query(
+      `INSERT INTO inventory (medicine_id, quantity, updated_at) VALUES ($1, $2, NOW())
+       ON CONFLICT (medicine_id) DO UPDATE SET quantity = EXCLUDED.quantity, updated_at = NOW()`,
+      [medicineId, next]
+    );
+
     const eventId = randomUUID();
     await client.query(
       `INSERT INTO scan_events (event_id,medicine_id,device_id,event_type,quantity,note)
        VALUES ($1,$2,$3,$4,$5,$6)`,
-      [eventId, medicineId, 'admin-portal', action, quantity, note]
+      [eventId, medicineId, 'admin-portal', action, quantity, note || `Stock updated to ${next} by admin`]
     );
     await client.query('COMMIT');
-    const payload = { medicine_id: medicineId, quantity: next, action };
+    const payload = { medicine_id: medicineId, quantity: next, action, medicine_name: med.rows[0].name };
     io.emit('inventory:updated', payload);
     res.json({ ok: true, ...payload });
   } catch (e) {
-    await client.query('ROLLBACK'); console.error(e); res.status(500).json({ error: 'Inventory update failed' });
-  } finally { client.release(); }
+    await client.query('ROLLBACK');
+    console.error(e);
+    res.status(500).json({ error: 'Inventory update failed' });
+  } finally {
+    client.release();
+  }
 });
 
 // Continuous Host & Local IP Detection
