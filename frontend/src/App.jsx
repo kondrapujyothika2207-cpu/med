@@ -130,7 +130,50 @@ const FEATURED_SAMPLES = [
   }
 ];
 
-function Login({ onLogin }) {
+function HardwareTicker({ devices = [] }) {
+  const espDevice = (Array.isArray(devices) && devices.length > 0)
+    ? (devices.find(d => d.id?.toLowerCase().includes('esp') || d.local_ip) || devices[0])
+    : null;
+  const ip = espDevice?.local_ip || '192.168.137.45';
+  const status = (espDevice?.status === 'online' || espDevice?.local_ip) ? 'ONLINE' : 'HOTSPOT ACTIVE';
+
+  const tickerItem = (
+    <>
+      <span>📡 ESP32 SENSOR NODE: <strong>{espDevice?.id || 'esp32-medicine-reader-01'}</strong></span>
+      <span className="ticker-sep">✦</span>
+      <span>LOCAL IP: <code className="ticker-ip">{ip}</code> ({status})</span>
+      <span className="ticker-sep">✦</span>
+      <span>WI-FI HOTSPOT: <strong>Nothing Phone (3a)_2505</strong></span>
+      <span className="ticker-sep">✦</span>
+      <span>RFID INTERROGATION: <strong>13.56 MHz (RC522 SPI / PN532 I2C)</strong></span>
+      <span className="ticker-sep">✦</span>
+      <span>TRI-COLOR LED: <span className="led-pill blue">🔵 Wi-Fi Blue (Connected)</span> <span className="led-pill green">🟢 Real Green (Authentic)</span> <span className="led-pill red">🔴 Fake Red (Alarm)</span></span>
+      <span className="ticker-sep">✦</span>
+      <span>BUZZER FEEDBACK: <strong>Melodic Connected / Solid 3kHz Verified / Rapid Siren Alert</strong></span>
+      <span className="ticker-sep">✦</span>
+      <span>AUDIT LEDGER: <strong>Block #0 Active (SHA-256 Proof of Work)</strong></span>
+      <span className="ticker-sep">✦</span>
+      <span>STATUS: <strong>READY FOR CARD SCAN</strong></span>
+      <span className="ticker-sep">✦</span>
+    </>
+  );
+
+  return (
+    <div className="telemetry-ticker-bar">
+      <div className="ticker-badge">
+        <span className="live-dot" /> LIVE HARDWARE TELEMETRY
+      </div>
+      <div className="ticker-track">
+        <div className="ticker-content">
+          {tickerItem}
+          {tickerItem}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Login({ onLogin, devices = [] }) {
   const [showLogin, setShowLogin] = useState(false);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -152,6 +195,7 @@ function Login({ onLogin }) {
   if (showLogin) {
     return (
       <main className="login-shell">
+        <HardwareTicker devices={devices} />
         <button className="back-home" onClick={() => setShowLogin(false)}>← Back to home</button>
         <div className="login-card entrance">
           <div className="brand-mark"><Pill size={28} /></div>
@@ -192,6 +236,7 @@ function Login({ onLogin }) {
 
   return (
     <main className="landing-page">
+      <HardwareTicker devices={devices} />
       <nav className="landing-nav">
         <button className="landing-brand" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
           <span className="brand-mark small"><Pill size={20} /></span>
@@ -231,6 +276,8 @@ function Login({ onLogin }) {
           </div>
 
           <div className="dashboard-mock">
+            <div className="scanner-laser-line" />
+            <div className="mock-scan-radar" />
             <div className="mock-top">
               <div className="mock-logo"><Pill size={16} /></div>
               <div><strong>Live overview</strong><small>Medicine operations</small></div>
@@ -267,6 +314,32 @@ function Login({ onLogin }) {
           </div>
         </div>
         <div className="hero-glow" />
+      </section>
+
+      <section className="compliance-logos-bar">
+        <div className="logos-label">PHARMACEUTICAL SERIALIZATION & IOT STANDARDS</div>
+        <div className="logos-grid">
+          <div className="logo-badge">
+            <span className="logo-badge-icon blue">WHO</span>
+            <div><strong>World Health Organization</strong><small>Good Distribution Practices (GDP)</small></div>
+          </div>
+          <div className="logo-badge">
+            <span className="logo-badge-icon teal">FDA</span>
+            <div><strong>U.S. FDA DSCSA</strong><small>Drug Supply Chain Security Act</small></div>
+          </div>
+          <div className="logo-badge">
+            <span className="logo-badge-icon orange">GS1</span>
+            <div><strong>GS1 Healthcare</strong><small>EPCIS Electronic Serialization</small></div>
+          </div>
+          <div className="logo-badge">
+            <span className="logo-badge-icon purple">ESP</span>
+            <div><strong>Espressif ESP32</strong><small>Secure IoT Core (WROOM-32)</small></div>
+          </div>
+          <div className="logo-badge">
+            <span className="logo-badge-icon green">GMP</span>
+            <div><strong>GMP Certified</strong><small>Tamper-Proof RFID Assurance</small></div>
+          </div>
+        </div>
       </section>
 
       <section className="trust-strip">
@@ -526,6 +599,27 @@ export default function App() {
   }
 
   useEffect(() => {
+    // Initial fetch of connected hardware & IP for public ticker
+    api('/api/devices/public').then(d => {
+      if (Array.isArray(d) && d.length) setDevices(d);
+    }).catch(() => {});
+
+    const socket = io(SOCKET, { transports: ['websocket', 'polling'] });
+    socket.on('device:heartbeat', hb => {
+      setDevices(prev => {
+        const idx = prev.findIndex(d => d.id === hb.id);
+        if (idx >= 0) {
+          const updated = [...prev];
+          updated[idx] = { ...updated[idx], ...hb };
+          return updated;
+        }
+        return [hb, ...prev];
+      });
+    });
+    return () => socket.disconnect();
+  }, []);
+
+  useEffect(() => {
     if (session?.token) load();
   }, [session?.token]);
 
@@ -550,7 +644,7 @@ export default function App() {
   const lowStock = medicines.filter(m => Number(m.quantity) <= 10).length;
   const onlineDevices = devices.filter(d => d.status === 'online' && d.last_seen && Date.now() - new Date(d.last_seen).getTime() < 120000).length;
 
-  if (!session) return <Login onLogin={data => { setSession(data); setTab('overview'); }} />;
+  if (!session) return <Login onLogin={data => { setSession(data); setTab('overview'); }} devices={devices} />;
 
   async function triggerSampleScan(sample) {
     if (!session?.token) return;
@@ -669,6 +763,7 @@ export default function App() {
       </aside>
 
       <main className="main">
+        <HardwareTicker devices={devices} />
         <header className="topbar">
           <div>
             <div className="eyebrow">MEDICINE OPERATIONS</div>

@@ -362,3 +362,295 @@ html{scroll-behavior:smooth;scroll-padding-top:90px}.landing-page{overflow:hidde
   .sample-cards-grid { grid-template-columns: 1fr; }
   .telemetry-grid { grid-template-columns: 1fr; }
 }
+
+/* Modern Trust Logos & Intro Animation */
+.trust-strip {
+  background: #ffffff;
+  border-top: 1px solid #e1ece8;
+  border-bottom: 1px solid #e1ece8;
+  padding: 24px 30px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+.trust-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  color: #8fa5a0;
+  text-transform: uppercase;
+}
+.logos-grid {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  flex-wrap: wrap;
+}
+.logo-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #f8fbfa;
+  border: 1px solid #e2ebe8;
+  border-radius: 12px;
+  padding: 8px 16px;
+  transition: transform 0.2s, box-shadow 0.2s, border-color 0.2s;
+}
+.logo-badge:hover {
+  transform: translateY(-2px);
+  border-color: #0c9b87;
+  box-shadow: 0 6px 16px #0c9b8715;
+}
+.logo-badge strong {
+  display: block;
+  font: 800 12px Manrope, sans-serif;
+  color: #173d40;
+}
+.logo-badge small {
+  display: block;
+  font-size: 9px;
+  color: #8da19e;
+  margin-top: 2px;
+}
+.logo-icon-blue { color: #1e88e5; }
+.logo-icon-teal { color: #0c9b87; }
+.logo-icon-orange { color: #f57c00; }
+.logo-icon-purple { color: #8e24aa; }
+
+/* Interactive intro laser scanner overlay on dashboard-mock */
+.dashboard-mock {
+  position: relative;
+  overflow: hidden;
+}
+.scanner-laser-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, #37dfba, #ffffff, #37dfba, transparent);
+  box-shadow: 0 0 15px #37dfba, 0 0 25px #0c9b87;
+  animation: laser-sweep 3.8s ease-in-out infinite;
+  z-index: 10;
+  pointer-events: none;
+}
+@keyframes laser-sweep {
+  0% { top: 0%; opacity: 0; }
+  15% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+
+/* Glowing pulse on hero badge */
+.hero-badge {
+  animation: pulse-glow 3s infinite alternate;
+}
+@keyframes pulse-glow {
+  0% { box-shadow: 0 0 0 0 #0c9b8730; }
+  100% { box-shadow: 0 0 20px 4px #0c9b8725; }
+}
+
+/* Live Hardware Telemetry Scrolling Marquee */
+.telemetry-ticker-bar {
+  background: #0f2c30;
+  color: #cbe9e3;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  height: 38px;
+  border-bottom: 1px solid #1a494d;
+  font-size: 11px;
+  position: relative;
+  z-index: 10;
+}
+.ticker-badge {
+  background: #087d70;
+  color: #fff;
+  font-weight: 800;
+  font-size: 9px;
+  letter-spacing: 1px;
+  padding: 0 16px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  box-shadow: 4px 0 12px #00000030;
+  z-index: 2;
+}
+.ticker-track {
+  overflow: hidden;
+  white-space: nowrap;
+  flex: 1;
+}
+.ticker-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 20px;
+  animation: marquee-scroll 22s linear infinite;
+  padding-left: 20px;
+}
+.ticker-content:hover {
+  animation-play-state: paused;
+}
+@keyframes marquee-scroll {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
+}
+.ticker-sep {
+  color: #2ed3b3;
+  font-size: 12px;
+}
+.ticker-ip {
+  background: #184b50;
+  color: #4df8d4;
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-weight: 700;
+  font-family: monospace;
+}
+.led-pill {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  margin-left: 3px;
+}
+.led-pill.blue { background: #133b63; color: #64b5f6; }
+.led-pill.green { background: #0f4632; color: #69f0ae; }
+.led-pill.red { background: #561a1a; color: #ff8a80; }
+
+/* Intro Laser Scanning Animation */
+.dashboard-mock {
+  position: relative;
+  overflow: hidden;
+}
+
+.scanner-laser-line {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, transparent, #22e3af 20%, #ffffff 50%, #22e3af 80%, transparent);
+  box-shadow: 0 0 16px #22e3af, 0 0 32px #22e3af70;
+  z-index: 15;
+  animation: laser-sweep 3.6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes laser-sweep {
+  0% {
+    top: -5px;
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  50% {
+    top: 96%;
+    opacity: 0.95;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    top: -5px;
+    opacity: 0;
+  }
+}
+
+.mock-scan-radar {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 280px;
+  height: 280px;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  border: 1px dashed #2ed3b320;
+  pointer-events: none;
+  animation: radar-spin 10s linear infinite;
+}
+
+@keyframes radar-spin {
+  0% { transform: translate(-50%, -50%) rotate(0deg); }
+  100% { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+/* Compliance & Standards Logos Bar */
+.compliance-logos-bar {
+  max-width: 1220px;
+  margin: -10px auto 40px auto;
+  padding: 0 24px;
+}
+
+.logos-label {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  color: #0c9b87;
+  text-align: center;
+  margin-bottom: 16px;
+  text-transform: uppercase;
+}
+
+.logos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 14px;
+}
+
+.logo-badge {
+  background: #ffffff;
+  border: 1px solid #e1ebe8;
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 4px 14px #0c9b870a;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.logo-badge:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px #0c9b8718;
+  border-color: #0c9b8740;
+}
+
+.logo-badge-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  font-size: 13px;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+.logo-badge-icon.blue   { background: #e8f3ff; color: #0066cc; border: 1px solid #bad9ff; }
+.logo-badge-icon.teal   { background: #e6faf7; color: #008775; border: 1px solid #a3ebe2; }
+.logo-badge-icon.orange { background: #fff4e5; color: #e65100; border: 1px solid #fed7aa; }
+.logo-badge-icon.purple { background: #f3e8ff; color: #7e22ce; border: 1px solid #d8b4fe; }
+.logo-badge-icon.green  { background: #e8f8f0; color: #15803d; border: 1px solid #bbf7d0; }
+
+.logo-badge strong {
+  display: block;
+  font-size: 13px;
+  color: #123035;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.logo-badge small {
+  display: block;
+  font-size: 11px;
+  color: #617b78;
+  margin-top: 2px;
+  line-height: 1.2;
+}
+

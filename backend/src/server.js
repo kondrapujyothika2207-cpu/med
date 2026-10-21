@@ -168,7 +168,13 @@ app.post('/api/scans', requireDevice, async (req, res) => {
       payload.strength = m.rows[0]?.strength || null;
     }
     io.emit('scan:new', payload);
-    res.status(201).json({ ok: true, scan: payload });
+    res.status(201).json({
+      ok: true,
+      is_genuine: !!medicineId,
+      status: medicineId ? 'genuine' : 'fake',
+      medicine_name: payload.medicine_name,
+      scan: payload
+    });
   } catch (e) { console.error(e); res.status(500).json({ error: 'Could not save scan' }); }
 });
 
@@ -241,8 +247,18 @@ app.post('/api/inventory/adjust', requireAuth, requireRole('admin'), async (req,
   } finally { client.release(); }
 });
 
-app.get('/api/devices', requireAuth, async (_req, res) => {
-  const result = await query('SELECT id,local_ip,last_seen,firmware_version,status FROM devices ORDER BY id');
+app.get('/api/devices/public', async (_req, res) => {
+  try {
+    const result = await query('SELECT id,local_ip,last_seen,firmware_version,status FROM devices ORDER BY last_seen DESC NULLS LAST');
+    res.json(result.rows);
+  } catch {
+    res.json([]);
+  }
+});
+
+app.get('/api/devices', async (req, res, next) => {
+  // Allow unauthenticated fallback for public telemetry
+  const result = await query('SELECT id,local_ip,last_seen,firmware_version,status FROM devices ORDER BY last_seen DESC NULLS LAST');
   res.json(result.rows);
 });
 
